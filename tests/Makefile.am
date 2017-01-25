@@ -38,7 +38,8 @@ AM_CXXFLAGS = $(CXXWARNINGS)
 LIBS += $(CPPCUTTER_LIBS)
 
 check_LTLIBRARIES = \
-    test_dbus_handlers.la
+    test_dbus_handlers.la \
+    test_cachepath.la
 
 test_dbus_handlers_la_SOURCES = \
     test_dbus_handlers.cc mock_expectation.hh \
@@ -47,6 +48,14 @@ test_dbus_handlers_la_LIBADD = \
     $(top_builddir)/src/libdbus_handlers.la
 test_dbus_handlers_la_CFLAGS = $(TACAMAN_DEPENDENCIES_CFLAGS) $(AM_CFLAGS)
 test_dbus_handlers_la_CXXFLAGS = $(TACAMAN_DEPENDENCIES_CFLAGS) $(AM_CXXFLAGS)
+
+test_cachepath_la_SOURCES = \
+    test_cachepath.cc mock_expectation.hh \
+    mock_messages.hh mock_messages.cc \
+    mock_os.hh mock_os.cc
+test_cachepath_la_LIBADD = $(top_builddir)/src/libcachepath.la
+test_cachepath_la_CFLAGS = $(AM_CFLAGS)
+test_cachepath_la_CXXFLAGS = $(AM_CXXFLAGS)
 
 CLEANFILES = test_report.xml test_report_junit.xml valgrind.xml
 

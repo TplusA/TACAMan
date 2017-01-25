@@ -37,6 +37,7 @@ AM_CFLAGS = $(CWARNINGS)
 AM_CXXFLAGS = $(CXXWARNINGS)
 
 noinst_LTLIBRARIES = \
+    libcachepath.la \
     libdbus_handlers.la \
     libartcache_dbus.la \
     libdebug_dbus.la
@@ -44,6 +45,11 @@ noinst_LTLIBRARIES = \
 tacaman_LDADD = $(noinst_LTLIBRARIES) $(TACAMAN_DEPENDENCIES_LIBS)
 
 tacaman_LDFLAGS = $(LTLIBINTL)
+
+libcachepath_la_SOURCES = \
+    cachepath.hh cachepath.cc
+libcachepath_la_CFLAGS = $(AM_CFLAGS)
+libcachepath_la_CXXFLAGS = $(AM_CXXFLAGS)
 
 libdbus_handlers_la_SOURCES = \
     dbus_handlers.h dbus_handlers.hh dbus_handlers.cc \
