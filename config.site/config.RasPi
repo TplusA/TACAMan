@@ -1,0 +1,21 @@
+# vi:syntax=sh
+COMMON_FLAGS="-pipe -g -O2 -mcpu=arm1176jzf-s -mfpu=vfp -mfloat-abi=hard -fstrict-aliasing"
+CFLAGS="-std=c11 $COMMON_FLAGS $CFLAGS"
+CXXFLAGS="-std=c++11 $COMMON_FLAGS $CXXFLAGS"
+
+COMMON_WARNINGS="-Wall -Wclobbered -Wsign-compare -Wuninitialized -Wunused-but-set-parameter -Wunused-function -Wundef -Wshadow -Wpointer-arith -Wfloat-equal -Wwrite-strings -Wstrict-aliasing -Wdouble-promotion"
+CWARNINGS="$COMMON_WARNINGS -Wbad-function-cast -Wnested-externs -Wmissing-prototypes -Wstrict-prototypes"
+CXXWARNINGS="$COMMON_WARNINGS -Wnon-virtual-dtor -Wstrict-null-sentinel -Woverloaded-virtual"
+CRELAXEDWARNINGS="$CWARNINGS -Wno-cast-qual -Wno-write-strings -Wno-unused-local-typedefs -Wno-bad-function-cast"
+CXXRELAXEDWARNINGS="$CXXWARNINGS -Wno-cast-qual"
+LDFLAGS="-L${TOOLCHAIN_DIR}/arm-linux-gnueabihf/libc/usr/lib/arm-linux-gnueabihf -L${SYSROOT_DIR}/usr/lib/arm-linux-gnueabihf"
+LIBS="-lpcre -lz -lselinux -lffi"
+
+PKG_CONFIG='/usr/bin/pkg-config'
+export PKG_CONFIG_SYSROOT_DIR="${SYSROOT_DIR}"
+export PKG_CONFIG_PATH="${SYSROOT_DIR}/usr/share/pkgconfig:${SYSROOT_DIR}/usr/lib/arm-linux-gnueabihf/pkgconfig"
+
+GDBUS_CODEGEN="PYTHONPATH=${SYSROOT_DIR}/usr/lib/arm-linux-gnueabihf/gdbus-2.0 ${SYSROOT_DIR}/usr/bin/gdbus-codegen"
+
+ac_cv_func_malloc_0_nonnull=yes
+ac_cv_func_realloc_0_nonnull=yes
