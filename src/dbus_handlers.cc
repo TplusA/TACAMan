@@ -39,10 +39,6 @@ static void enter_artcache_read_handler(GDBusMethodInvocation *invocation)
 gboolean dbusmethod_cache_get_scaled_image(tdbusArtCacheRead *object,
                                            GDBusMethodInvocation *invocation,
                                            GVariant *stream_key, GVariant *hash,
-                                           guchar *error_code,
-                                           guchar *image_priority,
-                                           GVariant *image_hash,
-                                           GVariant *image_data,
                                            gpointer user_data)
 {
     enter_artcache_read_handler(invocation);
