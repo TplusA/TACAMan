@@ -53,7 +53,9 @@ Pictures are associated with a stream by a pair of string key (called the
 _stream key_) and priority (numbers in range 1 through 255). Stream keys are to
 be generated and provided by users of the cache. The structure of these keys is
 not really prescribed by _tacaman_, except that it expects keys to be longer
-than 2 characters from the range `[0-9a-f]`. The priority determines the
+than 2 characters from the range `[0-9a-f]`. In fact, a stream key might be a
+hash of any kind computed from something derived from the stream, but as well
+it might be just a plain random number. The priority determines the
 trustworthiness, where higher numbers mean higher degree of trust. There can be
 multiple pictures for the same stream key, and they may be pushed to _tacaman_
 from different sources that do not communicate with each other. Using
