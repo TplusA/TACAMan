@@ -19,6 +19,9 @@
 #ifndef DBUS_HANDLERS_HH
 #define DBUS_HANDLERS_HH
 
+#include "artcache.hh"
+#include "converterqueue.hh"
+
 /*!
  * \addtogroup dbus_handlers DBus handlers for signals
  * \ingroup dbus
@@ -38,8 +41,22 @@ class SignalData
     SignalData &operator=(const SignalData &) = delete;
     SignalData(SignalData &&) = default;
 
-    explicit SignalData() {}
+    Converter::Queue &image_converter_queue_;
+    ArtCache::Manager &cache_manager_;
+
+    explicit SignalData(Converter::Queue &image_converter_queue,
+                        ArtCache::Manager &cache_manager):
+        image_converter_queue_(image_converter_queue),
+        cache_manager_(cache_manager)
+    {}
 };
+
+void binary_to_hexstring(std::string &dest, const uint8_t *data, size_t len);
+void hexstring_to_binary(std::uint8_t *dest, const std::string &str);
+
+#ifdef GLIB_CHECK_VERSION
+GVariant *hexstring_to_variant(const std::string &hexstring);
+#endif /* GLIB_CHECK_VERSION */
 
 }
 

@@ -29,7 +29,10 @@ CLEANFILES = README.html
 EXTRA_DIST += \
     dbus_interfaces/extract_documentation.py \
     dbus_interfaces/de_tahifi_artcache.xml \
-    dbus_interfaces/de_tahifi_debug.xml
+    dbus_interfaces/de_tahifi_debug.xml \
+    dbus_interfaces/de_tahifi_artcache_errors.hh \
+    dbus_interfaces/de_tahifi_artcache_monitor_errors.h \
+    dbus_interfaces/de_tahifi_artcache_read_errors.h
 
 BUILT_SOURCES = versioninfo.h
 

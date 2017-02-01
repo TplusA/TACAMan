@@ -29,6 +29,7 @@
 #include "messages_glib.h"
 #include "dbus_iface.h"
 #include "dbus_handlers.hh"
+#include "formats.hh"
 #include "os.h"
 #include "versioninfo.h"
 
@@ -219,7 +220,24 @@ int main(int argc, char *argv[])
     if(setup(&parameters, &loop) < 0)
         return EXIT_FAILURE;
 
-    static DBus::SignalData dbus_signal_data;
+    static constexpr size_t maximum_number_of_keys = 300;
+    static const ArtCache::Statistics limits
+    (
+        maximum_number_of_keys,
+        2 * maximum_number_of_keys,
+        2 * maximum_number_of_keys * Converter::get_output_format_list().get_formats().size()
+    );
+
+    static Converter::Queue converter_queue(parameters.cache_root);
+    static ArtCache::Manager cman(parameters.cache_root, limits,
+                                  converter_queue);
+
+    converter_queue.init();
+
+    if(!cman.init())
+        return EXIT_FAILURE;
+
+    static DBus::SignalData dbus_signal_data(converter_queue, cman);
 
     if(dbus_setup(loop, parameters.connect_to_session_dbus, &dbus_signal_data) < 0)
         return EXIT_FAILURE;
@@ -228,6 +246,7 @@ int main(int argc, char *argv[])
     g_main_loop_run(loop);
 
     msg_vinfo(MESSAGE_LEVEL_IMPORTANT, "Shutting down");
+    converter_queue.shutdown();
     dbus_shutdown(loop);
 
     return EXIT_SUCCESS;

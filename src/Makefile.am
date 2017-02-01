@@ -22,9 +22,17 @@ bin_PROGRAMS = tacaman
 
 tacaman_SOURCES = \
     tacaman.cc \
+    artcache.hh artcache.cc cachepath.hh cachetypes.hh \
+    converterqueue.hh converterqueue.cc converterjob.cc \
+    pending.hh \
+    formats.hh formats.cc \
+    md5.cc md5.hh \
     messages.h messages.c messages_glib.h messages_glib.c \
     dbus_iface.c dbus_iface.h dbus_iface_deep.h dbus_handlers.hh \
-    os.c os.h
+    os.c os.h \
+    ../dbus_interfaces/de_tahifi_artcache_errors.hh \
+    ../dbus_interfaces/de_tahifi_artcache_monitor_errors.h \
+    ../dbus_interfaces/de_tahifi_artcache_read_errors.h
 
 DBUS_IFACES = $(top_srcdir)/dbus_interfaces
 
@@ -54,6 +62,7 @@ libcachepath_la_CXXFLAGS = $(AM_CXXFLAGS)
 libdbus_handlers_la_SOURCES = \
     dbus_handlers.h dbus_handlers.hh dbus_handlers.cc \
     dbus_iface_deep.h \
+    md5.hh \
     messages_dbus.h messages_dbus.c
 libdbus_handlers_la_CFLAGS = $(AM_CFLAGS)
 libdbus_handlers_la_CXXFLAGS = $(AM_CXXFLAGS)
