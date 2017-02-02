@@ -45,7 +45,7 @@ void Converter::Job::add_pending_key(const ArtCache::StreamPrioPair &sp)
 
       case State::DONE_OK:
       case State::DONE_ERROR:
-        BUG("Cannot add pending key in state %u", state_);
+        BUG("Cannot add pending key in state %u", static_cast<unsigned int>(state_));
         return;
     }
 
@@ -306,7 +306,7 @@ Converter::Job::Result Converter::Job::do_execute(std::unique_lock<std::mutex> &
       case State::CONVERTING:
       case State::DONE_OK:
       case State::DONE_ERROR:
-        BUG("Prepare job in state %u", state_);
+        BUG("Prepare job in state %u", static_cast<unsigned int>(state_));
         result = Result::INTERNAL_ERROR;
         break;
     }
@@ -340,7 +340,7 @@ Converter::Job::Result Converter::Job::do_execute(std::unique_lock<std::mutex> &
       case State::DOWNLOAD_IDLE:
       case State::CONVERT_IDLE:
       case State::DONE_OK:
-        BUG("State %u after script execution", state_);
+        BUG("State %u after script execution", static_cast<unsigned int>(state_));
         result = Result::INTERNAL_ERROR;
         break;
     }

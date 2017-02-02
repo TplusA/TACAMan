@@ -386,7 +386,7 @@ ArtCache::Manager::add_stream_key_for_source(const ArtCache::StreamPrioPair &str
 
     ArtCache::AddSourceResult src_result = mk_source_entry(sources_path_,
                                                            source_hash);
-    bool have_new_source;
+    bool have_new_source = false;
 
     switch(src_result)
     {
@@ -396,13 +396,10 @@ ArtCache::Manager::add_stream_key_for_source(const ArtCache::StreamPrioPair &str
         break;
 
       case AddSourceResult::NOT_CHANGED:
-        have_new_source = false;
         break;
 
       case AddSourceResult::EMPTY:
-        if(pending_.is_source_pending__unlocked(source_hash, true))
-            have_new_source = false;
-        else
+        if(!pending_.is_source_pending__unlocked(source_hash, true))
         {
             msg_info("Resuming pending source \"%s\"", source_hash.c_str());
             have_new_source = true;
