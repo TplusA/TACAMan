@@ -78,9 +78,9 @@ static void append_snippet(std::ostringstream &os, const Converter::ConvertData 
 
     for(const auto &outfmt : cdata->output_formats_)
         os << "nice -n " << cdata->niceness_
-           << " gm convert '" << cdata->input_file_name_
+           << " convert '" << cdata->input_file_name_
            << "' -resize " << outfmt.dimensions_
-           << " -colors 255 -dither -background transparent '"
+           << " -colors 255 -dither FloydSteinberg -background transparent '"
            << outfmt.format_spec_ << ':' << outfmt.filename_ << "' &\n";
 
     os << "for i in `seq " << cdata->output_formats_.size() << "`\ndo\n"
