@@ -35,8 +35,8 @@ extern "C" {
 
 gboolean dbusmethod_cache_get_scaled_image(tdbusArtCacheRead *object,
                                            GDBusMethodInvocation *invocation,
-                                           GVariant *stream_key, GVariant *hash,
-                                           gpointer user_data);
+                                           GVariant *stream_key, const char *format,
+                                           GVariant *hash, gpointer user_data);
 
 gboolean dbusmethod_cache_add_by_uri(tdbusArtCacheWrite *object,
                                      GDBusMethodInvocation *invocation,

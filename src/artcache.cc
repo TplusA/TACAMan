@@ -201,16 +201,23 @@ void ArtCache::Manager::reset()
 }
 
 static inline ArtCache::Path mk_stream_key_dirname(const std::string &cache_root,
-                                                   const ArtCache::StreamPrioPair &stream_key)
+                                                   const std::string &stream_key,
+                                                   uint8_t priority)
 {
     char priority_str[4];
-    snprintf(priority_str, sizeof(priority_str),
-             "%03u", stream_key.priority_);
+    snprintf(priority_str, sizeof(priority_str), "%03u", priority);
 
     ArtCache::Path temp(cache_root);
-    temp.append_hash(stream_key.stream_key_).append_part(priority_str);
+    temp.append_hash(stream_key).append_part(priority_str);
 
     return temp;
+}
+
+static inline ArtCache::Path mk_stream_key_dirname(const std::string &cache_root,
+                                                   const ArtCache::StreamPrioPair &stream_key)
+{
+    return mk_stream_key_dirname(cache_root,
+                                 stream_key.stream_key_, stream_key.priority_);
 }
 
 static inline ArtCache::Path mk_source_file_name(const ArtCache::Path &root,
@@ -514,7 +521,7 @@ static ArtCache::AddObjectResult mk_object_entry(ArtCache::Path &object_name,
 
 struct FindFormatLinkData
 {
-    const std::string format_name_;
+    const std::string &format_name_;
     std::string found_;
 };
 
@@ -604,7 +611,8 @@ move_objects_and_update_source(const std::vector<std::string> &import_objects,
             return ArtCache::UpdateSourceResult::INTERNAL_ERROR;
         }
 
-        struct FindFormatLinkData find_data { std::string(&*(plain_name - 1)) };
+        const std::string format_name(&*(plain_name - 1));
+        struct FindFormatLinkData find_data { format_name };
         ArtCache::Path link_path(source_path);
         link_path.append_part(find_data.format_name_ + ':' + object_hash_string, true);
 
@@ -858,49 +866,163 @@ bool ArtCache::Manager::delete_object(const std::string &object_hash)
 }
 
 ArtCache::LookupResult
-ArtCache::Manager::lookup(const std::string &stream_key, uint8_t priority,
-                          const std::string &object_hash, ArtCache::Object *&obj) const
+ArtCache::Manager::lookup(const ArtCache::StreamPrioPair &stream_key,
+                          const std::string &object_hash,
+                          const std::string &format,
+                          std::unique_ptr<Object> &obj) const
 {
-    log_assert(!stream_key.empty());
+    log_assert(!stream_key.stream_key_.empty());
+    log_assert(stream_key.priority_ > 0);
 
     std::lock_guard<std::mutex> lock(lock_);
 
-    if(object_hash.empty())
-        msg_vinfo(MESSAGE_LEVEL_DEBUG,
-                  "Lookup key \"%s\" prio %u (unconditional)",
-                  stream_key.c_str(), priority);
+    return do_lookup(stream_key.stream_key_, stream_key.priority_,
+                     object_hash, format, obj);
+}
+
+static int find_highest(const char *path, void *user_data)
+{
+    auto *prio = static_cast<uint8_t *>(user_data);
+
+    unsigned int temp = 0;
+
+    for(char ch = *path; ch != '\0'; ch = *path++)
+    {
+        if(ch < '0' || ch > '9')
+            return 0;
+
+        temp *= 10;
+        temp += ch - '0';
+
+        if(temp > UINT8_MAX)
+            return 0;
+    }
+
+    if(temp > *prio)
+        *prio = temp;
+
+    return 0;
+}
+
+static uint8_t find_highest_priority(const std::string &cache_root,
+                                     const std::string &stream_key,
+                                     ArtCache::LookupResult &result_on_fail)
+{
+    ArtCache::Path p(cache_root);
+    p.append_hash(stream_key);
+
+    uint8_t prio = 0;
+
+    if(os_foreach_in_path(p.str().c_str(), find_highest, &prio) < 0)
+        result_on_fail = ArtCache::LookupResult::IO_ERROR;
     else
-        msg_vinfo(MESSAGE_LEVEL_DEBUG,
-                  "Lookup key \"%s\" prio %u, client version \"%s\"",
-                  stream_key.c_str(), priority,  object_hash.c_str());
+        result_on_fail = ArtCache::LookupResult::KEY_UNKNOWN;
 
-    BUG("%s(): not implemented yet", __func__);
-    obj = nullptr;
-
-    return LookupResult::KEY_UNKNOWN;
+    return prio;
 }
 
 ArtCache::LookupResult
 ArtCache::Manager::lookup(const std::string &stream_key,
-                          const std::string &object_hash, ArtCache::Object *&obj) const
+                          const std::string &object_hash,
+                          const std::string &format,
+                          std::unique_ptr<Object> &obj) const
 {
     log_assert(!stream_key.empty());
 
     std::lock_guard<std::mutex> lock(lock_);
 
+    ArtCache::LookupResult result;
+    const uint8_t prio =
+        find_highest_priority(cache_root_, stream_key, result);
+
+    return (prio > 0)
+        ? do_lookup(stream_key, prio, object_hash, format, obj)
+        : result;
+}
+
+ArtCache::LookupResult
+ArtCache::Manager::do_lookup(const std::string &stream_key, uint8_t priority,
+                             const std::string &object_hash,
+                             const std::string &format,
+                             std::unique_ptr<ArtCache::Object> &obj) const
+{
     if(object_hash.empty())
         msg_vinfo(MESSAGE_LEVEL_DEBUG,
-                  "Lookup best object for key \"%s\" (unconditional)",
-                  stream_key.c_str());
+                  "Lookup key %s prio %u format %s (unconditional)",
+                  stream_key.c_str(), priority, format.c_str());
     else
         msg_vinfo(MESSAGE_LEVEL_DEBUG,
-                  "Lookup best object for key \"%s\", client version \"%s\"",
-                  stream_key.c_str(), object_hash.c_str());
+                  "Lookup key %s prio %u format %s, client version %s",
+                  stream_key.c_str(), priority, format.c_str(),
+                  object_hash.c_str());
 
-    BUG("%s(): not implemented yet", __func__);
     obj = nullptr;
 
-    return LookupResult::KEY_UNKNOWN;
+    const Path p(mk_stream_key_dirname(cache_root_, stream_key, priority));
+    if(!p.exists())
+        return LookupResult::KEY_UNKNOWN;
+
+    const std::string source_hash(get_stream_key_source_link(p));
+    if(source_hash.empty())
+        return LookupResult::ORPHANED;
+
+    Path src(mk_source_dir_name(sources_path_, source_hash));
+    if(!src.exists())
+        return pending_.is_source_pending(source_hash, false)
+            ? LookupResult::PENDING
+            : LookupResult::ORPHANED;
+
+    if(!object_hash.empty())
+    {
+        /* caller has provided a hint that he knows the data for the given
+         * object hash, so don't read anything from file if the object hasn't
+         * changed */
+        Path temp(src);
+        temp.append_part(std::string(format) + ':' + object_hash, true);
+
+        if(temp.exists())
+        {
+            msg_vinfo(MESSAGE_LEVEL_DIAG,
+                      "Object has not changed for key %s prio %u format %s",
+                      stream_key.c_str(), priority, format.c_str());
+
+            obj.reset(new ArtCache::Object(priority, object_hash));
+
+            return LookupResult::FOUND;
+        }
+    }
+
+
+    struct FindFormatLinkData find_data { format };
+    if(os_foreach_in_path(src.str().c_str(),
+                          find_link_for_format, &find_data) < 0)
+        return LookupResult::IO_ERROR;
+
+    if(find_data.found_.empty())
+        return pending_.is_source_pending(source_hash, false)
+            ? LookupResult::PENDING
+            : LookupResult::FORMAT_NOT_SUPPORTED;
+
+    msg_vinfo(MESSAGE_LEVEL_DIAG,
+              "Returning %s for key %s prio %u format %s",
+              find_data.found_.c_str(), stream_key.c_str(), priority,
+              format.c_str());
+
+    src.append_part(find_data.found_, true);
+
+    struct os_mapped_file_data mapped;
+    if(os_map_file_to_memory(&mapped, src.str().c_str()) < 0)
+        return LookupResult::IO_ERROR;
+
+    obj.reset(new ArtCache::Object(priority,
+                                   find_data.found_.substr(format.length() + 1,
+                                                           std::string::npos),
+                                   static_cast<const uint8_t *>(mapped.ptr),
+                                   mapped.length));
+
+    os_unmap_file(&mapped);
+
+    return (obj != nullptr) ? LookupResult::FOUND : LookupResult::IO_ERROR;
 }
 
 ArtCache::GCResult ArtCache::Manager::gc()

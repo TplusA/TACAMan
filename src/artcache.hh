@@ -20,6 +20,7 @@
 #define ARTCACHE_HH
 
 #include <mutex>
+#include <memory>
 
 #include "cachetypes.hh"
 #include "cachepath.hh"
@@ -72,6 +73,7 @@ enum class LookupResult
     FOUND,
     KEY_UNKNOWN,
     PENDING,
+    FORMAT_NOT_SUPPORTED,
     ORPHANED,
     IO_ERROR,
 };
@@ -223,10 +225,14 @@ class Manager
      */
     void delete_key(const StreamPrioPair &stream_key);
 
-    LookupResult lookup(const std::string &stream_key, uint8_t priority,
-                        const std::string &source_hash, Object *&obj) const;
+    LookupResult lookup(const StreamPrioPair &stream_key,
+                        const std::string &source_hash,
+                        const std::string &format,
+                        std::unique_ptr<Object> &obj) const;
     LookupResult lookup(const std::string &stream_key,
-                        const std::string &source_hash, Object *&obj) const;
+                        const std::string &source_hash,
+                        const std::string &format,
+                        std::unique_ptr<Object> &obj) const;
 
     GCResult gc();
 
@@ -257,6 +263,11 @@ class Manager
      *     This function must be called only while holding the object lock.
      */
     bool delete_object(const std::string &object_hash);
+
+    LookupResult do_lookup(const std::string &stream_key, uint8_t priority,
+                           const std::string &source_hash,
+                           const std::string &format,
+                           std::unique_ptr<Object> &obj) const;
 
     GCResult do_gc();
 

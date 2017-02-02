@@ -175,8 +175,8 @@ static void enter_artcache_read_handler(GDBusMethodInvocation *invocation)
 
 gboolean dbusmethod_cache_get_scaled_image(tdbusArtCacheRead *object,
                                            GDBusMethodInvocation *invocation,
-                                           GVariant *stream_key, GVariant *hash,
-                                           gpointer user_data)
+                                           GVariant *stream_key, const char *format,
+                                           GVariant *hash, gpointer user_data)
 {
     enter_artcache_read_handler(invocation);
 
@@ -214,9 +214,10 @@ gboolean dbusmethod_cache_get_scaled_image(tdbusArtCacheRead *object,
     auto error_code = ArtCache::ReadError::Code::INTERNAL;
     guchar priority = 0;
 
-    ArtCache::Object *obj;
+    std::unique_ptr<ArtCache::Object> obj;
 
-    switch(data->cache_manager_.lookup(key_string, object_hash_string, obj))
+    switch(data->cache_manager_.lookup(key_string, object_hash_string,
+                                       format, obj))
     {
       case ArtCache::LookupResult::FOUND:
         log_assert(obj != nullptr);
@@ -234,6 +235,11 @@ gboolean dbusmethod_cache_get_scaled_image(tdbusArtCacheRead *object,
       case ArtCache::LookupResult::PENDING:
         log_assert(obj == nullptr);
         error_code = ArtCache::ReadError::Code::BUSY;
+        break;
+
+      case ArtCache::LookupResult::FORMAT_NOT_SUPPORTED:
+        log_assert(obj == nullptr);
+        error_code = ArtCache::ReadError::Code::FORMAT_NOT_SUPPORTED;
         break;
 
       case ArtCache::LookupResult::ORPHANED:
