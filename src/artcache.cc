@@ -323,7 +323,8 @@ static int find_src_file(const char *path, void *user_data)
     return 1;
 }
 
-static std::string get_stream_key_source_link(const ArtCache::Path &stream_key_dirname)
+static std::string get_stream_key_source_link(const ArtCache::Path &stream_key_dirname,
+                                              std::string *source_link_filename = nullptr)
 {
     std::string link_name;
 
@@ -331,7 +332,14 @@ static std::string get_stream_key_source_link(const ArtCache::Path &stream_key_d
                        &link_name);
 
     if(!link_name.empty())
+    {
+        if(source_link_filename != nullptr)
+            *source_link_filename = link_name;
+
         link_name.erase(0, 4);
+    }
+    else if(source_link_filename != nullptr)
+        source_link_filename->clear();
 
     return link_name;
 }
@@ -708,6 +716,123 @@ ArtCache::Manager::update_source(const std::string &source_hash,
             : (link_keys_result == ArtCache::UpdateSourceResult::NOT_CHANGED
                ? move_objects_result
                : UpdateSourceResult::UPDATED_ALL));
+}
+
+void ArtCache::Manager::delete_key(const StreamPrioPair &stream_key)
+{
+    std::lock_guard<std::mutex> lock(lock_);
+
+    const Path p(mk_stream_key_dirname(cache_root_, stream_key));
+
+    if(!p.exists())
+    {
+        BUG("Cannot delete key %s[%u], does not exist",
+            stream_key.stream_key_.c_str(), stream_key.priority_);
+        return;
+    }
+
+    std::string linked_file;
+    const std::string source_hash(get_stream_key_source_link(p, &linked_file));
+
+    if(!linked_file.empty())
+    {
+        Path temp(p);
+        temp.append_part(linked_file, true);
+        os_file_delete(temp.str().c_str());
+        (void)delete_source(source_hash);
+    }
+
+    if(!os_rmdir(p.str().c_str(), true))
+    {
+        BUG("Failed deleting key %s[%u]",
+            stream_key.stream_key_.c_str(), stream_key.priority_);
+        return;
+    }
+
+    --statistics_.number_of_stream_keys_;
+
+    msg_vinfo(MESSAGE_LEVEL_DIAG, "Deleted key %s[%u]",
+              stream_key.stream_key_.c_str(), stream_key.priority_);
+}
+
+static bool must_keep_file(const ArtCache::Path &ref,
+                           const char *what, const std::string &name)
+{
+    const size_t refcount(os_path_get_number_of_hard_links(ref.str().c_str()));
+
+    if(refcount == 0)
+    {
+        BUG("Cannot delete %s %s, does not exist", what, name.c_str());
+        return true;
+    }
+    else if(refcount < 2)
+        return false;
+    else
+    {
+        msg_vinfo(MESSAGE_LEVEL_DEBUG,
+                  "Not deleting %s %s with refcount %zu",
+                  what, name.c_str(), refcount);
+        return true;
+    }
+}
+
+int ArtCache::Manager::delete_unreferenced_objects(const char *path,
+                                                   void *user_data)
+{
+    if((path == REFFILE_NAME))
+        return 0;
+
+    static_cast<ArtCache::Manager *>(user_data)->delete_object(path);
+
+    return 0;
+}
+
+bool ArtCache::Manager::delete_source(const std::string &source_hash)
+{
+    const Path ref(mk_source_reffile_name(sources_path_, source_hash));
+
+    if(must_keep_file(ref, "source", source_hash))
+        return false;
+
+    const std::string srcdir(ref.dirstr());
+    os_foreach_in_path(srcdir.c_str(), delete_unreferenced_objects, this);
+
+    os_file_delete(ref.str().c_str());
+
+    if(!os_rmdir(srcdir.c_str(), true))
+    {
+        BUG("Failed deleting source %s", source_hash.c_str());
+        return false;
+    }
+
+    --statistics_.number_of_sources_;
+
+    msg_vinfo(MESSAGE_LEVEL_DIAG, "Deleted source %s", source_hash.c_str());
+
+    return true;
+}
+
+bool ArtCache::Manager::delete_object(const std::string &object_hash)
+{
+    ArtCache::Path p(objects_path_);
+    p.append_hash(object_hash, true);
+
+    if(must_keep_file(p, "object", object_hash))
+        return false;
+
+    os_file_delete(p.str().c_str());
+
+    if(!os_rmdir(p.dirstr().c_str(), true))
+    {
+        BUG("Failed deleting object %s", object_hash.c_str());
+        return false;
+    }
+
+    --statistics_.number_of_objects_;
+
+    msg_vinfo(MESSAGE_LEVEL_DIAG, "Deleted object %s", object_hash.c_str());
+
+    return true;
 }
 
 ArtCache::LookupResult

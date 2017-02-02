@@ -211,6 +211,18 @@ class Manager
                                      std::vector<std::string> &&import_objects,
                                      std::vector<std::pair<StreamPrioPair, AddKeyResult>> &pending_stream_keys);
 
+    /*!
+     * Remove key/prio pair, remove source if it would be left unreferenced.
+     *
+     * This function is typically called for clean up actions after download
+     * failures or similar issues that would render the key useless.
+     *
+     * \note
+     *     This function should \e not be called for garbage collection. It's
+     *     deletion policies are too aggressive for this purpose.
+     */
+    void delete_key(const StreamPrioPair &stream_key);
+
     LookupResult lookup(const std::string &stream_key, uint8_t priority,
                         const std::string &source_hash, Object *&obj) const;
     LookupResult lookup(const std::string &stream_key,
@@ -219,6 +231,33 @@ class Manager
     GCResult gc();
 
   private:
+    static int delete_unreferenced_objects(const char *path, void *user_data);
+
+    /*!
+     * Remove unreferenced source, remove objects that would be left
+     * unreferenced.
+     *
+     * This function will not remove a source if its reference count is greater
+     * than 1. That is, it will not leave keys behind with a shared reference
+     * to a common, non-existent source because it would make detection of
+     * dangling keys harder, thus more costly.
+     *
+     * \note
+     *     This function must be called only while holding the object lock.
+     */
+    bool delete_source(const std::string &source_hash);
+
+    /*!
+     * Remove unreferenced object.
+     *
+     * This function will not remove an object if its reference count is
+     * greater than 1.
+     *
+     * \note
+     *     This function must be called only while holding the object lock.
+     */
+    bool delete_object(const std::string &object_hash);
+
     GCResult do_gc();
 
     void reset();
