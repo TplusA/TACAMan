@@ -185,6 +185,15 @@ bool Converter::Queue::is_source_pending__unlocked(const std::string &source_has
         if(pdata_.adding_source_hash_ != nullptr &&
            source_hash == *pdata_.adding_source_hash_)
             return true;
+
+        if(running_job_ != nullptr && running_job_->source_hash_ == source_hash)
+            return true;
+    }
+
+    for(const auto &job : jobs_)
+    {
+        if(job->source_hash_ == source_hash)
+            return true;
     }
 
     return false;
