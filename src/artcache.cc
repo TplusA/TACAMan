@@ -200,7 +200,7 @@ static inline ArtCache::Path mk_source_file_name(const ArtCache::Path &root,
 }
 
 static inline ArtCache::Path mk_source_dir_name(const ArtCache::Path &root,
-                                                 const std::string &source_hash)
+                                                const std::string &source_hash)
 {
     ArtCache::Path temp(root);
     return temp.append_hash(source_hash);
