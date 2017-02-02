@@ -47,7 +47,7 @@ ArtCache::Path &ArtCache::Path::append_hash(const std::string &s, bool as_file)
         if(s.empty())
             BUG("Cannot append empty hash to path");
         else
-            BUG("Hash too short");
+            BUG("Hash \"%s\" too short", s.c_str());
 
         return *this;
     }
