@@ -27,8 +27,6 @@ static Converter::OutputFormatList all_output_formats;
 Converter::OutputFormatList::OutputFormatList()
 {
     formats_.emplace_back(OutputFormat("png", "120x120"));
-    formats_.emplace_back(OutputFormat("png", "200x200"));
-    formats_.emplace_back(OutputFormat("jpg", "400x400"));
 }
 
 const Converter::OutputFormatList &Converter::get_output_format_list()
