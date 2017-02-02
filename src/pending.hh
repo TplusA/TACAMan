@@ -26,6 +26,7 @@ namespace ArtCache
 {
 
 struct StreamPrioPair;
+class Manager;
 
 enum class AddKeyResult
 {
@@ -58,7 +59,8 @@ class PendingIface
                                            const std::string &source_hash) = 0;
     virtual void notify_pending_key_processed(const ArtCache::StreamPrioPair &stream_key,
                                               const std::string &source_hash,
-                                              ArtCache::AddKeyResult result) = 0;
+                                              ArtCache::AddKeyResult result,
+                                              Manager &cache_manager) = 0;
 };
 
 }

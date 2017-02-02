@@ -353,7 +353,8 @@ void Converter::Job::finalize(ArtCache::PendingIface &pending)
     std::lock_guard<std::mutex> lock(lock_);
 
     for(const auto &key : pending_stream_keys_)
-        pending.notify_pending_key_processed(key.first, source_hash_, key.second);
+        pending.notify_pending_key_processed(key.first, source_hash_, key.second,
+                                             cache_manager_);
 
     /* attempt cleaning up the nice way, file by file */
     os_file_delete(script_name_.c_str());

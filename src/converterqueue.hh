@@ -242,7 +242,8 @@ class Queue: public ArtCache::PendingIface
                                    const std::string &source_hash) override;
     void notify_pending_key_processed(const ArtCache::StreamPrioPair &stream_key,
                                       const std::string &source_hash,
-                                      ArtCache::AddKeyResult result) override;
+                                      ArtCache::AddKeyResult result,
+                                      ArtCache::Manager &cache_manager) override;
 
   private:
     bool queue(std::shared_ptr<Job> &&job);

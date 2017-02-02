@@ -116,7 +116,8 @@ void Converter::Queue::add_to_cache_by_uri(ArtCache::Manager &cache_manager,
 
     if(result != ArtCache::AddKeyResult::SOURCE_UNKNOWN)
     {
-        notify_pending_key_processed(sp, source_hash_string, result);
+        notify_pending_key_processed(sp, source_hash_string, result,
+                                     cache_manager);
         return;
     }
 
@@ -140,7 +141,7 @@ void Converter::Queue::add_to_cache_by_uri(ArtCache::Manager &cache_manager,
         return;
     }
 
-    notify_pending_key_processed(sp_copy, source_hash_string, result);
+    notify_pending_key_processed(sp_copy, source_hash_string, result, cache_manager);
 }
 
 void Converter::Queue::add_to_cache_by_data(ArtCache::Manager &cache_manager,
@@ -210,9 +211,11 @@ bool Converter::Queue::add_key_to_pending_source(const ArtCache::StreamPrioPair 
     return false;
 }
 
+// cppcheck-suppress functionStatic
 void Converter::Queue::notify_pending_key_processed(const ArtCache::StreamPrioPair &stream_key,
                                                     const std::string &source_hash,
-                                                    ArtCache::AddKeyResult result)
+                                                    ArtCache::AddKeyResult result,
+                                                    ArtCache::Manager &cache_manager)
 {
     auto error_code(ArtCache::MonitorError::Code::INTERNAL);
 
@@ -269,6 +272,8 @@ void Converter::Queue::notify_pending_key_processed(const ArtCache::StreamPrioPa
         error_code = ArtCache::MonitorError::Code::INTERNAL;
         break;
     }
+
+    cache_manager.delete_key(stream_key);
 
     tdbus_art_cache_monitor_emit_failed(dbus_get_artcache_monitor_iface(),
                                         DBus::hexstring_to_variant(stream_key.stream_key_),
