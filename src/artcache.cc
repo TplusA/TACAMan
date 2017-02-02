@@ -130,11 +130,12 @@ void ArtCache::Statistics::dump(const char *what) const
 {
     static constexpr char plural[] = "s";
 
-    msg_info("%s: %zu object%s, %zu source%s, %zu stream key%s",
-             what,
-             number_of_objects_, number_of_objects_ != 1 ? plural : "",
-             number_of_sources_, number_of_sources_ != 1 ? plural : "",
-             number_of_stream_keys_, number_of_stream_keys_ != 1 ? plural : "");
+    msg_vinfo(MESSAGE_LEVEL_INFO_MIN,
+              "%s: %zu object%s, %zu source%s, %zu stream key%s",
+              what,
+              number_of_objects_, number_of_objects_ != 1 ? plural : "",
+              number_of_sources_, number_of_sources_ != 1 ? plural : "",
+              number_of_stream_keys_, number_of_stream_keys_ != 1 ? plural : "");
 }
 
 bool ArtCache::Manager::init()
