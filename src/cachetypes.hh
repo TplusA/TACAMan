@@ -53,9 +53,11 @@ struct StreamPrioPair
 
 class Object
 {
+  public:
+    const uint8_t priority_;
+    const std::string hash_;
+
   private:
-    uint8_t priority_;
-    std::string hash_;
     std::vector<uint8_t> data_;
 
   public:
@@ -66,8 +68,17 @@ class Object
         priority_(UINT8_MAX)
     {}
 
-    uint8_t priority() const { return priority_; }
-    const std::string hash() const { return hash_; }
+    explicit Object(uint8_t priority, const std::string &hash):
+        priority_(priority),
+        hash_(hash)
+    {}
+
+    explicit Object(uint8_t priority, const std::string &hash,
+                    const uint8_t *objdata, size_t length);
+
+    explicit Object(uint8_t priority, std::string &&hash,
+                    const uint8_t *objdata, size_t length);
+
     const std::vector<uint8_t> data() const { return data_; }
 };
 

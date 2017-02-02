@@ -223,7 +223,7 @@ gboolean dbusmethod_cache_get_scaled_image(tdbusArtCacheRead *object,
         error_code = (obj->data().empty()
                       ? ArtCache::ReadError::Code::OK
                       : ArtCache::ReadError::Code::UNCACHED);
-        priority = obj->priority();
+        priority = obj->priority_;
         break;
 
       case ArtCache::LookupResult::KEY_UNKNOWN:
@@ -259,9 +259,9 @@ gboolean dbusmethod_cache_get_scaled_image(tdbusArtCacheRead *object,
     }
     else
     {
-        log_assert(!obj->hash().empty());
+        log_assert(!obj->hash_.empty());
 
-        hash_variant = DBus::hexstring_to_variant(obj->hash());
+        hash_variant = DBus::hexstring_to_variant(obj->hash_);
         data_variant = g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE,
                                                  obj->data().data(),
                                                  obj->data().size(),

@@ -126,6 +126,28 @@ static bool count_cached_hashes(std::string path, size_t &count)
     return true;
 }
 
+ArtCache::Object::Object(uint8_t objpriority, const std::string &objhash,
+                         const uint8_t *objdata, size_t objlength):
+    priority_(objpriority),
+    hash_(objhash)
+{
+    log_assert(objdata != nullptr);
+    log_assert(objlength > 0);
+
+    std::copy(objdata, objdata + objlength, std::back_inserter(data_));
+}
+
+ArtCache::Object::Object(uint8_t objpriority, std::string &&objhash,
+                         const uint8_t *objdata, size_t objlength):
+    priority_(objpriority),
+    hash_(std::move(objhash))
+{
+    log_assert(objdata != nullptr);
+    log_assert(objlength > 0);
+
+    std::copy(objdata, objdata + objlength, std::back_inserter(data_));
+}
+
 void ArtCache::Statistics::dump(const char *what) const
 {
     static constexpr char plural[] = "s";
