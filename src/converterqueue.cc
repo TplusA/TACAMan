@@ -122,7 +122,7 @@ void Converter::Queue::add_to_cache_by_uri(ArtCache::Manager &cache_manager,
     }
 
     msg_vinfo(MESSAGE_LEVEL_DEBUG,
-                "Source \"%s\" (%s) for key \"%s\", prio %u not in cache",
+                "Source \"%s\" (%s) for key %s, prio %u not in cache",
                 uri, source_hash_string.c_str(),
                 sp.stream_key_.c_str(), sp.priority_);
 
