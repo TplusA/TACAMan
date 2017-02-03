@@ -273,7 +273,6 @@ class Manager
     GCResult do_gc();
 
     void reset();
-    bool contains_stream_key(const StreamPrioPair &stream_key) const;
 };
 
 void compute_hash(Manager::Hash &hash, const char *str);
