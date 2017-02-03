@@ -220,7 +220,7 @@ move_files_to_cache(ArtCache::Manager &cache_manager, Converter::ConvertData &cd
     return result;
 }
 
-static int delete_all(const char *path, void *user_data)
+static int delete_all(const char *path, unsigned char dtype, void *user_data)
 {
     auto temp(*static_cast<const std::string *>(user_data));
     temp += '/';

@@ -22,6 +22,7 @@
 
 #include <cstring>
 #include <algorithm>
+#include <dirent.h>
 
 #include "artcache.hh"
 #include "os.h"
@@ -100,7 +101,7 @@ struct TraverseTraits<struct CountData>
 };
 
 template <typename T, typename Traits = TraverseTraits<T>>
-static int traverse_sub(const char *path, void *user_data)
+static int traverse_sub(const char *path, unsigned char dtype, void *user_data)
 {
     auto &cd = *static_cast<T *>(user_data);
 
@@ -116,8 +117,11 @@ static int traverse_sub(const char *path, void *user_data)
 }
 
 template <typename T, typename Traits = TraverseTraits<T>>
-static int traverse_top(const char *path, void *user_data)
+static int traverse_top(const char *path, unsigned char dtype, void *user_data)
 {
+    if(dtype != DT_DIR)
+        return 0;
+
     auto &cd = *static_cast<T *>(user_data);
 
     if(!ArtCache::is_valid_hash(path, 2) || path[2] != '\0')
@@ -302,16 +306,20 @@ static T link(const std::string &newpath, const std::string &src,
         : retval_on_io_error;
 }
 
-static int have_linked_outputs(const char *path, void *user_data)
+static int have_linked_outputs(const char *path, unsigned char dtype, void *user_data)
 {
+    if(dtype != DT_REG)
+        return 0;
+
     if((path == REFFILE_NAME))
         return 0;
 
     *static_cast<bool *>(user_data) = true;
+
     return 1;
 }
 
-static int delete_all(const char *path, void *user_data)
+static int delete_all(const char *path, unsigned char dtype, void *user_data)
 {
     auto temp(*static_cast<const ArtCache::Path *>(user_data));
     temp.append_part(path, true);
@@ -365,12 +373,16 @@ static ArtCache::AddSourceResult mk_source_entry(const ArtCache::Path &sources_r
                  ArtCache::AddSourceResult::IO_ERROR);
 }
 
-static int find_src_file(const char *path, void *user_data)
+static int find_src_file(const char *path, unsigned char dtype, void *user_data)
 {
+    if(dtype != DT_REG)
+        return 0;
+
     if(strncmp(path, "src:", 4) != 0)
         return 0;
 
     *static_cast<std::string *>(user_data) = path;
+
     return 1;
 }
 
@@ -547,8 +559,11 @@ struct FindFormatLinkData
     std::string found_;
 };
 
-static int find_link_for_format(const char *path, void *user_data)
+static int find_link_for_format(const char *path, unsigned char dtype, void *user_data)
 {
+    if(dtype != DT_REG)
+        return 0;
+
     auto *data(static_cast<struct FindFormatLinkData *>(user_data));
 
     if(strncmp(path,
@@ -829,8 +844,12 @@ static bool must_keep_file(const ArtCache::Path &ref,
 }
 
 int ArtCache::Manager::delete_unreferenced_objects(const char *path,
+                                                   unsigned char dtype,
                                                    void *user_data)
 {
+    if(dtype != DT_REG)
+        return 0;
+
     if((path == REFFILE_NAME))
         return 0;
 
@@ -902,8 +921,11 @@ ArtCache::Manager::lookup(const ArtCache::StreamPrioPair &stream_key,
                      object_hash, format, obj);
 }
 
-static int find_highest(const char *path, void *user_data)
+static int find_highest(const char *path, unsigned char dtype, void *user_data)
 {
+    if(dtype != DT_DIR)
+        return 0;
+
     auto *prio = static_cast<uint8_t *>(user_data);
 
     unsigned int temp = 0;

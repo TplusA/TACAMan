@@ -237,7 +237,8 @@ class Manager
     GCResult gc();
 
   private:
-    static int delete_unreferenced_objects(const char *path, void *user_data);
+    static int delete_unreferenced_objects(const char *path, unsigned char dtype,
+                                           void *user_data);
 
     /*!
      * Remove unreferenced source, remove objects that would be left
