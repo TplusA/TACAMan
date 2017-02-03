@@ -94,6 +94,23 @@ static void append_snippet(std::ostringstream &os, const Converter::ConvertData 
     os << "exit 0\n";
 }
 
+bool Converter::Job::write_data_to_file(const uint8_t *data, size_t length,
+                                        const std::string &filename)
+{
+    int fd = os_file_new(filename.c_str());
+    if(fd < 0)
+        return false;
+
+    bool failed = (os_write_from_buffer(data, length, fd) < 0);
+
+    os_file_close(fd);
+
+    if(failed)
+        os_file_delete(filename.c_str());
+
+    return !failed;
+}
+
 static Converter::Job::State
 generate_script(const std::string &script_name,
                 const Converter::DownloadData *const dldata,
@@ -128,23 +145,10 @@ generate_script(const std::string &script_name,
     append_snippet(os, dldata);
     append_snippet(os, cdata);
 
-    bool failed = false;
-    int fd = os_file_new(script_name.c_str());
-
-    if(fd < 0)
-        failed = true;
-    else
-    {
-        const auto &str(os.str());
-        failed = (os_write_from_buffer(str.c_str(), str.length(), fd) < 0);
-
-        os_file_close(fd);
-
-        if(failed)
-            os_file_delete(script_name.c_str());
-    }
-
-    if(failed)
+    const auto &str(os.str());
+    if(!Converter::Job::write_data_to_file(
+            static_cast<const uint8_t *>(static_cast<const void *>(str.c_str())),
+            str.length(), script_name))
     {
         result = Converter::Job::Result::IO_ERROR;
         return Converter::Job::State::DONE_ERROR;
@@ -233,7 +237,7 @@ static int delete_all(const char *path, unsigned char dtype, void *user_data)
     return 0;
 }
 
-static Converter::Job::Result clean_up(const std::string &workdir)
+Converter::Job::Result Converter::Job::clean_up(const std::string &workdir)
 {
     os_foreach_in_path(workdir.c_str(), delete_all,
                        const_cast<std::string *>(&workdir));
@@ -253,7 +257,7 @@ static Converter::Job::Result create_empty_workdir(const std::string &workdir)
     else if(errno != EEXIST)
         return Converter::Job::Result::IO_ERROR;
 
-    auto result(clean_up(workdir));
+    auto result(Converter::Job::clean_up(workdir));
     if(result != Converter::Job::Result::OK)
         return result;
 

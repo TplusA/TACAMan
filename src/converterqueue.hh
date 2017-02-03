@@ -200,6 +200,11 @@ class Job
 
   private:
     Result do_execute(std::unique_lock<std::mutex> &lock);
+
+  public:
+    static Result clean_up(const std::string &workdir);
+    static bool write_data_to_file(const uint8_t *data, size_t length,
+                                   const std::string &filename);
 };
 
 class Queue: public ArtCache::PendingIface
