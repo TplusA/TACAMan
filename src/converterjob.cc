@@ -80,6 +80,7 @@ static void append_snippet(std::ostringstream &os, const Converter::ConvertData 
         os << "nice -n " << cdata->niceness_
            << " convert '" << cdata->input_file_name_
            << "' -resize " << outfmt.dimensions_
+           << " -strip"
            << " -colors 255 -dither FloydSteinberg -background transparent '"
            << outfmt.format_spec_ << ':' << outfmt.filename_ << "' &\n";
 
