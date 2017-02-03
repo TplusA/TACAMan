@@ -35,7 +35,6 @@ struct CountData
     CountData &operator=(const CountData &) = delete;
 
     std::string temp_path_;
-    std::string temp_subpath_;
     const size_t temp_path_original_len_;
 
     size_t count_;
@@ -80,32 +79,55 @@ bool ArtCache::is_valid_hash(const char *str, size_t len)
     return true;
 }
 
-static int count_hashes_sub(const char *path, void *user_data)
+template <typename T>
+struct TraverseTraits;
+
+template <>
+struct TraverseTraits<struct CountData>
 {
-    auto &cd = *static_cast<CountData *>(user_data);
+    static inline int traverse_sub_failed(CountData &cd)
+    {
+        msg_error(errno, LOG_ALERT, "Failed counting hashes in cache");
+        return -1;
+    }
+
+    static inline int traverse_found_hashdir(CountData &cd,
+                                             const char *path)
+    {
+        ++cd.count_;
+        return 0;
+    }
+};
+
+template <typename T, typename Traits = TraverseTraits<T>>
+static int traverse_sub(const char *path, void *user_data)
+{
+    auto &cd = *static_cast<T *>(user_data);
 
     if(ArtCache::is_valid_hash(path))
-        ++cd.count_;
+    {
+        const int ret(Traits::traverse_found_hashdir(cd, path));
+
+        if(ret != 0)
+            return ret;
+    }
 
     return 0;
 }
 
-static int count_hashes_top(const char *path, void *user_data)
+template <typename T, typename Traits = TraverseTraits<T>>
+static int traverse_top(const char *path, void *user_data)
 {
-    auto &cd = *static_cast<CountData *>(user_data);
+    auto &cd = *static_cast<T *>(user_data);
 
     if(!ArtCache::is_valid_hash(path, 2) || path[2] != '\0')
         return 0;
 
     cd.temp_path_.resize(cd.temp_path_original_len_);
     cd.temp_path_ += path;
-    cd.temp_subpath_ = cd.temp_path_;
 
-    if(os_foreach_in_path(cd.temp_path_.c_str(), count_hashes_sub, user_data) != 0)
-    {
-        msg_error(errno, LOG_ALERT, "Failed counting hashes in cache");
-        return -1;
-    }
+    if(os_foreach_in_path(cd.temp_path_.c_str(), traverse_sub<T>, user_data) != 0)
+        return Traits::traverse_sub_failed(cd);
 
     return 0;
 }
@@ -114,7 +136,7 @@ static bool count_cached_hashes(std::string path, size_t &count)
 {
     CountData cd(path.c_str());
 
-    if(os_foreach_in_path(path.c_str(), count_hashes_top, &cd) != 0)
+    if(os_foreach_in_path(path.c_str(), traverse_top<CountData>, &cd) != 0)
     {
         msg_error(errno, LOG_ALERT,
                   "Failed reading cache below \"%s\"", path.c_str());
