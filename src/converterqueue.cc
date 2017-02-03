@@ -36,7 +36,7 @@ static std::string compute_uri_hash(const char *uri)
     ArtCache::compute_hash(hash, uri);
 
     std::string result;
-    DBus::binary_to_hexstring(result, hash.data(), hash.size());
+    ArtCache::hash_to_string(hash, result);
 
     return result;
 }
