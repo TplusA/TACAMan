@@ -1,3 +1,25 @@
+2017-02-03  Robert Tiemann  <r.tiemann@ta-hifi.de>
+
+	* Version 0.2 released.
+
+	* Lookup: It works now. Also, the D-Bus interface has been changed to
+	  enable requesting a specific output format.
+
+	* Insert: Pictures can be added by passing in the raw picture data
+	  bytes over D-Bus.
+
+	* Cache: Clean up the mess when failing to insert something into the
+	  cache structure.
+
+	* Image conversion: Using ImageMagick instead of GraphicsMagick. Also
+	  stripping comment, dates, and other meta data from converted files.
+
+	* Image conversion: Only supporting 120x120 PNG because this is what
+	  we need right now.
+
+	* What's missing: Garbage collection; cache structure check (kind of
+	  an fsck for the cache).
+
 2017-02-01  Robert Tiemann  <r.tiemann@ta-hifi.de>
 
 	* Version 0.1 released.
