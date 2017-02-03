@@ -154,14 +154,14 @@ class Job
     /*!
      * Download first, then convert.
      */
-    explicit Job(std::string &&temp_dir, const char *uri,
-                 std::string &&source_hash,
+    explicit Job(std::string &&temp_dir, const std::string &temp_file_name,
+                 const char *uri, std::string &&source_hash,
                  ArtCache::StreamPrioPair &&first_pending_key,
                  ArtCache::Manager &cache_manager):
         source_hash_(std::move(source_hash)),
         state_(State::DOWNLOAD_IDLE),
         cache_manager_(cache_manager),
-        temp_file_name_("original_downloaded"),
+        temp_file_name_(temp_file_name),
         download_data_(uri, temp_file_name_),
         convert_data_(temp_file_name_, std::move(temp_dir),
                       get_output_format_list().get_formats()),
@@ -174,14 +174,14 @@ class Job
     /*!
      * For just converting data without prior download.
      */
-    explicit Job(std::string &&temp_dir,
+    explicit Job(std::string &&temp_dir, const std::string &temp_file_name,
                  std::string &&source_hash,
                  ArtCache::StreamPrioPair &&first_pending_key,
                  ArtCache::Manager &cache_manager):
         source_hash_(std::move(source_hash)),
         state_(State::CONVERT_IDLE),
         cache_manager_(cache_manager),
-        temp_file_name_("original_raw"),
+        temp_file_name_(temp_file_name),
         download_data_(temp_file_name_),
         convert_data_(temp_file_name_, std::move(temp_dir),
                       get_output_format_list().get_formats()),

@@ -41,6 +41,17 @@ static std::string compute_uri_hash(const char *uri)
     return result;
 }
 
+static std::string compute_data_hash(const uint8_t *data, size_t length)
+{
+    ArtCache::Manager::Hash hash;
+    ArtCache::compute_hash(hash, data, length);
+
+    std::string result;
+    ArtCache::hash_to_string(hash, result);
+
+    return result;
+}
+
 void Converter::Queue::worker_main()
 {
     std::unique_lock<std::mutex> qlock(lock_, std::defer_lock);
@@ -130,8 +141,11 @@ void Converter::Queue::add_to_cache_by_uri(ArtCache::Manager &cache_manager,
             static_cast<const ArtCache::StreamPrioPair &>(sp).stream_key_,
             sp.priority_);
 
+    static const std::string temp_filename("original_downloaded");
+
     if(queue(std::move(std::shared_ptr<Job>(
             new Job(std::move(std::string(temp_dir_ + '/' + source_hash_string)),
+                    temp_filename,
                     uri, std::move(source_hash_string),
                     std::move(sp), cache_manager)))))
     {
@@ -153,21 +167,59 @@ void Converter::Queue::add_to_cache_by_data(ArtCache::Manager &cache_manager,
     log_assert(data != nullptr);
     log_assert(length > 0);
 
-    ArtCache::Manager::Hash source_hash;
-    ArtCache::compute_hash(source_hash, data, length);
+    std::string source_hash_string(compute_data_hash(data, length));
 
     std::lock_guard<std::mutex> lock(lock_);
+    auto addguard(pdata_.earmark_add_source(source_hash_string));
+
+    auto result(cache_manager.add_stream_key_for_source(sp, source_hash_string));
+
+    if(result != ArtCache::AddKeyResult::SOURCE_UNKNOWN)
+    {
+        notify_pending_key_processed(sp, source_hash_string, result,
+                                     cache_manager);
+        return;
+    }
 
     msg_vinfo(MESSAGE_LEVEL_DEBUG,
-              "Add key \"%s\", prio %u for raw data of length %zu",
-              sp.stream_key_.c_str(), sp.priority_, length);
+              "Source %s for key %s, prio %u not in cache",
+              source_hash_string.c_str(),
+              sp.stream_key_.c_str(), sp.priority_);
 
-    BUG("%s(): not implemented yet", __func__);
+    ArtCache::StreamPrioPair sp_copy(
+            static_cast<const ArtCache::StreamPrioPair &>(sp).stream_key_,
+            sp.priority_);
 
-    tdbus_art_cache_monitor_emit_failed(dbus_get_artcache_monitor_iface(),
-                                        DBus::hexstring_to_variant(sp.stream_key_),
-                                        sp.priority_,
-                                        ArtCache::MonitorError::Code::INTERNAL);
+    std::string workdir(temp_dir_ + '/' + source_hash_string);
+
+    if(!os_mkdir_hierarchy(workdir.c_str(), true))
+        result = (errno == EEXIST)
+            ? ArtCache::AddKeyResult::SOURCE_PENDING
+            : ArtCache::AddKeyResult::IO_ERROR;
+
+    static const std::string temp_filename("original_raw");
+
+    if(result == ArtCache::AddKeyResult::SOURCE_UNKNOWN &&
+       !Converter::Job::write_data_to_file(data, length,
+                                           workdir + '/' + temp_filename))
+    {
+        result = ArtCache::AddKeyResult::IO_ERROR;
+        Converter::Job::clean_up(workdir);
+    }
+
+    if(result == ArtCache::AddKeyResult::SOURCE_UNKNOWN &&
+       queue(std::move(std::shared_ptr<Job>(
+            new Job(std::move(workdir), temp_filename,
+                    std::move(source_hash_string),
+                    std::move(sp), cache_manager)))))
+    {
+        tdbus_art_cache_monitor_emit_associated(dbus_get_artcache_monitor_iface(),
+                                                DBus::hexstring_to_variant(sp_copy.stream_key_),
+                                                sp_copy.priority_);
+        return;
+    }
+
+    notify_pending_key_processed(sp_copy, source_hash_string, result, cache_manager);
 }
 
 bool Converter::Queue::is_source_pending(const std::string &source_hash,

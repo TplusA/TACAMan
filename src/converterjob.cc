@@ -269,6 +269,16 @@ static Converter::Job::Result create_empty_workdir(const std::string &workdir)
     return Converter::Job::Result::INTERNAL_ERROR;
 }
 
+static Converter::Job::Result ensure_workdir(const std::string &workdir)
+{
+    errno = 0;
+
+    if(os_mkdir_hierarchy(workdir.c_str(), true) || errno == EEXIST)
+        return Converter::Job::Result::OK;
+    else
+        return Converter::Job::Result::IO_ERROR;
+}
+
 void Converter::Job::execute()
 {
     std::unique_lock<std::mutex> lock(lock_);
@@ -292,19 +302,26 @@ void Converter::Job::execute()
 
 Converter::Job::Result Converter::Job::do_execute(std::unique_lock<std::mutex> &lock)
 {
-    Result result(create_empty_workdir(convert_data_.output_directory_));
-
-    if(result != Result::OK)
-        return result;
+    Result result(Result::INTERNAL_ERROR);
 
     switch(state_)
     {
       case State::DOWNLOAD_IDLE:
-        state_ = generate_script(script_name_, &download_data_, &convert_data_, result);
+        result = create_empty_workdir(convert_data_.output_directory_);
+
+        if(result == Result::OK)
+            state_ = generate_script(script_name_, &download_data_,
+                                     &convert_data_, result);
+
         break;
 
       case State::CONVERT_IDLE:
-        state_ = generate_script(script_name_, nullptr, &convert_data_, result);
+        result = ensure_workdir(convert_data_.output_directory_);
+
+        if(result == Result::OK)
+            state_ = generate_script(script_name_, nullptr,
+                                     &convert_data_, result);
+
         break;
 
       case State::DOWNLOADING_AND_CONVERTING:
@@ -312,7 +329,6 @@ Converter::Job::Result Converter::Job::do_execute(std::unique_lock<std::mutex> &
       case State::DONE_OK:
       case State::DONE_ERROR:
         BUG("Prepare job in state %u", static_cast<unsigned int>(state_));
-        result = Result::INTERNAL_ERROR;
         break;
     }
 
