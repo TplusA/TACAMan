@@ -930,7 +930,7 @@ static int find_highest(const char *path, unsigned char dtype, void *user_data)
 
     unsigned int temp = 0;
 
-    for(char ch = *path; ch != '\0'; ch = *path++)
+    for(char ch = *path++; ch != '\0'; ch = *path++)
     {
         if(ch < '0' || ch > '9')
             return 0;
