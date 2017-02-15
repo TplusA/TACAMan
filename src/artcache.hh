@@ -235,8 +235,11 @@ class Timestamp
 
         if(access_time.tv_sec < std::numeric_limits<long>::max())
             ++access_time.tv_sec;
-        else
+        else if(!overflown_)
+        {
+            msg_info("TIMESTAMP OVERFLOW");
             overflown_ = true;
+        }
 
         return !overflown_;
     }
@@ -255,6 +258,7 @@ class BackgroundTask
     enum class Action
     {
         SHUTDOWN,
+        RESET_TIMESTAMPS,
         GC,
     };
 
@@ -280,6 +284,7 @@ class BackgroundTask
     void sync();
 
     bool garbage_collection() { return append_action(Action::GC); }
+    bool reset_all_timestamps() { return append_action(Action::RESET_TIMESTAMPS); }
 
   private:
     void task_main();
@@ -438,12 +443,14 @@ class Manager
     void reset();
 
     GCResult do_gc();
+    void do_reset_all_timestamps();
 
   public:
     struct BackgroundActions
     {
       private:
         static GCResult gc(Manager &manager) { return manager.do_gc(); }
+        static void reset_all_timestamps(Manager &manager) { manager.do_reset_all_timestamps(); }
 
         friend class BackgroundTask;
     };

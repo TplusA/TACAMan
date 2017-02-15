@@ -372,13 +372,19 @@ bool ArtCache::Manager::init()
 {
     background_task_.start();
 
-    timestamp_for_hot_path_.reset(objects_path_);
+    const bool object_path_exists(timestamp_for_hot_path_.reset(objects_path_));
 
     if(!os_mkdir_hierarchy(sources_path_.str().c_str(), false) ||
        !os_mkdir_hierarchy(objects_path_.str().c_str(), false))
     {
         reset();
         return false;
+    }
+
+    if(!object_path_exists)
+    {
+        background_task_.reset_all_timestamps();
+        background_task_.sync();
     }
 
     msg_vinfo(MESSAGE_LEVEL_DIAG, "Root \"%s\"", cache_root_.c_str());
@@ -1306,6 +1312,9 @@ ArtCache::Manager::do_lookup(const std::string &stream_key, uint8_t priority,
         statistics_.mark_for_gc();
     }
 
+    if(timestamp_for_hot_path_.is_overflown())
+        background_task_.reset_all_timestamps();
+
     return (obj != nullptr) ? LookupResult::FOUND : LookupResult::IO_ERROR;
 }
 
@@ -1791,4 +1800,99 @@ ArtCache::GCResult ArtCache::Manager::do_gc()
         statistics_.dump("Cache statistics after garbage collection");
 
     return removed_anything ? GCResult::DEFLATED : GCResult::NOT_POSSIBLE;
+}
+
+struct ResetTimestampsData: public TraverseData
+{
+    const std::string *const append_filename_;
+    const ArtCache::Timestamp &timestamp_;
+    size_t success_count_;
+    size_t failure_count_;
+
+    explicit ResetTimestampsData(const std::string &root,
+                                 const std::string *append_filename,
+                                 const ArtCache::Timestamp &timestamp):
+        TraverseData(root),
+        append_filename_(append_filename),
+        timestamp_(timestamp),
+        success_count_(0),
+        failure_count_(0)
+    {}
+
+    explicit ResetTimestampsData(std::string &&root,
+                                 const std::string *append_filename,
+                                 const ArtCache::Timestamp &timestamp):
+        TraverseData(std::move(root)),
+        append_filename_(append_filename),
+        timestamp_(timestamp),
+        success_count_(0),
+        failure_count_(0)
+    {}
+};
+
+template <>
+struct TraverseTraits<struct ResetTimestampsData>
+{
+    static inline int traverse_sub_failed(ResetTimestampsData &rd) { return 0; }
+
+    static inline int traverse_found_hashdir(ResetTimestampsData &rd,
+                                             const char *path,
+                                             unsigned char dtype)
+    {
+        std::string p(rd.temp_path_ + '/' + path);
+
+        if(rd.append_filename_ != nullptr)
+        {
+            if(dtype != DT_DIR)
+            {
+                BUG("Path %s is not a directory", p.c_str());
+                return 0;
+            }
+
+            p += '/' + *rd.append_filename_;
+        }
+
+        msg_vinfo(MESSAGE_LEVEL_TRACE, "Reset timestamp for \"%s\"", p.c_str());
+
+        if(rd.timestamp_.set_access_time(p))
+            ++rd.success_count_;
+        else
+            ++rd.failure_count_;
+
+        return 0;
+    }
+};
+
+static void reset_timestamps(const std::string &path,
+                             const ArtCache::Timestamp &timestamp,
+                             size_t &success_count, size_t &failure_count,
+                             const std::string *append_filename = nullptr)
+{
+    ResetTimestampsData rd(path, append_filename, timestamp);
+    os_foreach_in_path(path.c_str(), traverse_top<ResetTimestampsData>, &rd);
+
+    success_count += rd.success_count_;
+    failure_count += rd.failure_count_;
+}
+
+void ArtCache::Manager::do_reset_all_timestamps()
+{
+    msg_info("Resetting all timestamps");
+
+    std::lock_guard<std::mutex> lock(lock_);
+
+    timestamp_for_hot_path_.reset();
+    timestamp_for_hot_path_.set_access_time(objects_path_);
+
+    size_t success_count = 0;
+    size_t failure_count = 0;
+    reset_timestamps(std::move(std::string(cache_root_ + '/')), timestamp_for_hot_path_,
+                     success_count, failure_count);
+    reset_timestamps(sources_path_.str(), timestamp_for_hot_path_,
+                     success_count, failure_count, &REFFILE_NAME);
+    reset_timestamps(objects_path_.str(), timestamp_for_hot_path_,
+                     success_count, failure_count);
+
+    msg_info("Resetting timestamps done (%zu set, %zu failed)",
+             success_count, failure_count);
 }

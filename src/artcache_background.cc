@@ -54,6 +54,10 @@ void ArtCache::BackgroundTask::task_main()
           case Action::GC:
             Manager::BackgroundActions::gc(manager_);
             break;
+
+          case Action::RESET_TIMESTAMPS:
+            Manager::BackgroundActions::reset_all_timestamps(manager_);
+            break;
         }
     }
 }
