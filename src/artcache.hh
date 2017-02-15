@@ -357,7 +357,7 @@ class Manager
      *     Which source to update.
      * \param import_objects
      *     List of files that contain objects to be associated with the given
-     *     source. All given files are moved to the object cached using
+     *     source. All given files are moved to the object cache using
      *     \c rename(2), and linked with the source using \c link(2).
      * \param pending_stream_keys
      *     A list of stream key/priority pairs that should be updated to point
