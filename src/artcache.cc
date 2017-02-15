@@ -340,8 +340,11 @@ static int have_linked_outputs(const char *path, unsigned char dtype, void *user
     return 1;
 }
 
-static int delete_all(const char *path, unsigned char dtype, void *user_data)
+static int delete_file(const char *path, unsigned char dtype, void *user_data)
 {
+    if(dtype != DT_REG)
+        return 0;
+
     auto temp(*static_cast<const ArtCache::Path *>(user_data));
     temp.append_part(path, true);
 
@@ -385,7 +388,7 @@ static ArtCache::AddSourceResult mk_source_entry(const ArtCache::Path &sources_r
                 : ArtCache::AddSourceResult::EMPTY;
         }
 
-        os_foreach_in_path(srcdir.str().c_str(), delete_all, &srcdir);
+        os_foreach_in_path(srcdir.str().c_str(), delete_file, &srcdir);
     }
 
     return touch(temp.str().c_str(),
