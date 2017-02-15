@@ -23,6 +23,7 @@ bin_PROGRAMS = tacaman
 tacaman_SOURCES = \
     tacaman.cc \
     artcache.hh artcache.cc cachepath.hh cachetypes.hh \
+    artcache_background.cc \
     converterqueue.hh converterqueue.cc converterjob.cc \
     pending.hh \
     formats.hh formats.cc \

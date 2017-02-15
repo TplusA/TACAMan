@@ -20,6 +20,9 @@
 #define ARTCACHE_HH
 
 #include <mutex>
+#include <condition_variable>
+#include <thread>
+#include <deque>
 #include <memory>
 
 #include "cachetypes.hh"
@@ -83,6 +86,7 @@ enum class GCResult
 {
     NOT_REQUIRED,
     NOT_POSSIBLE,
+    SCHEDULED,
     DEFLATED,
     IO_ERROR,
 };
@@ -243,6 +247,45 @@ class Timestamp
     bool set_access_time(const std::string &path) const;
 };
 
+class Manager;
+
+class BackgroundTask
+{
+  private:
+    enum class Action
+    {
+        SHUTDOWN,
+        GC,
+    };
+
+    std::thread th_;
+
+    std::mutex lock_;
+    std::condition_variable have_work_;
+    std::condition_variable all_work_done_;
+    std::deque<Action> pending_actions_;
+
+    Manager &manager_;
+
+  public:
+    BackgroundTask(const BackgroundTask &) = delete;
+    BackgroundTask &operator=(const BackgroundTask &) = delete;
+
+    explicit BackgroundTask(Manager &manager): manager_(manager) {}
+
+    ~BackgroundTask() { shutdown(true); }
+
+    void start();
+    void shutdown(bool is_high_priority);
+    void sync();
+
+    bool garbage_collection() { return append_action(Action::GC); }
+
+  private:
+    void task_main();
+    bool append_action(Action action);
+};
+
 class Manager
 {
   public:
@@ -264,6 +307,7 @@ class Manager
     PendingIface &pending_;
 
     mutable Timestamp timestamp_for_hot_path_;
+    mutable BackgroundTask background_task_;
 
   public:
     Manager(const Manager &) = delete;
@@ -276,7 +320,8 @@ class Manager
         objects_path_(cache_root_ + "/.obj"),
         upper_limits_(upper_limits),
         lower_limits_(upper_limits_, LIMITS_LOW_HI_PERCENTAGE),
-        pending_(pending)
+        pending_(pending),
+        background_task_(*this)
     {}
 
     bool init();
@@ -344,9 +389,15 @@ class Manager
                         const std::string &format,
                         std::unique_ptr<Object> &obj) const;
 
-    GCResult gc();
+    GCResult gc()
+    {
+        std::lock_guard<std::mutex> lock(lock_);
+        return gc__unlocked();
+    }
 
   private:
+    GCResult gc__unlocked();
+
     static int delete_unreferenced_objects(const char *path, unsigned char dtype,
                                            void *user_data);
 
@@ -387,6 +438,15 @@ class Manager
     void reset();
 
     GCResult do_gc();
+
+  public:
+    struct BackgroundActions
+    {
+      private:
+        static GCResult gc(Manager &manager) { return manager.do_gc(); }
+
+        friend class BackgroundTask;
+    };
 };
 
 void compute_hash(Manager::Hash &hash, const char *str);

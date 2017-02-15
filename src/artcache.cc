@@ -370,6 +370,8 @@ bool ArtCache::Timestamp::set_access_time(const std::string &path) const
 
 bool ArtCache::Manager::init()
 {
+    background_task_.start();
+
     timestamp_for_hot_path_.reset(objects_path_);
 
     if(!os_mkdir_hierarchy(sources_path_.str().c_str(), false) ||
@@ -400,6 +402,7 @@ bool ArtCache::Manager::init()
         break;
 
       case GCResult::DEFLATED:
+      case GCResult::SCHEDULED:
         break;
 
       case GCResult::IO_ERROR:
@@ -712,6 +715,7 @@ ArtCache::Manager::add_stream_key_for_source(const ArtCache::StreamPrioPair &str
       case AddKeyResult::INSERTED:
         /* key didn't exist, so we can link to source entry right now */
         statistics_.add_stream();
+        gc__unlocked();
         return link_to_source(stream_key_dir, sources_path_, source_hash,
                               have_new_source ? AddKeyResult::SOURCE_UNKNOWN : AddKeyResult::INSERTED);
 
@@ -1305,13 +1309,14 @@ ArtCache::Manager::do_lookup(const std::string &stream_key, uint8_t priority,
     return (obj != nullptr) ? LookupResult::FOUND : LookupResult::IO_ERROR;
 }
 
-ArtCache::GCResult ArtCache::Manager::gc()
+ArtCache::GCResult ArtCache::Manager::gc__unlocked()
 {
-    std::lock_guard<std::mutex> lock(lock_);
+    if(!statistics_.exceeds_limits(upper_limits_))
+        return GCResult::NOT_REQUIRED;
 
-    return statistics_.exceeds_limits(upper_limits_)
-        ? do_gc()
-        : GCResult::NOT_REQUIRED;
+    background_task_.garbage_collection();
+
+    return GCResult::SCHEDULED;
 }
 
 void ArtCache::compute_hash(ArtCache::Manager::Hash &hash, const char *str)
@@ -1712,11 +1717,19 @@ ArtCache::GCResult ArtCache::Manager::do_gc()
         if(need_new_statistics)
             collect_statistics(streams_minmax, cache_root_);
 
+        lock.unlock();
+        std::this_thread::yield();
+        lock.lock();
+
         const bool sources_changed(statistics_.mark_unchanged());
         const size_t sources_expected(statistics_.get_number_of_sources());
 
         if(need_new_statistics)
             collect_statistics(sources_minmax, sources_path_.str());
+
+        lock.unlock();
+        std::this_thread::yield();
+        lock.lock();
 
         const bool objects_changed(statistics_.mark_unchanged());
         const size_t objects_expected(statistics_.get_number_of_objects());
@@ -1725,6 +1738,7 @@ ArtCache::GCResult ArtCache::Manager::do_gc()
             collect_statistics(objects_minmax, objects_path_.str());
 
         lock.unlock();
+        std::this_thread::yield();
 
         compute_threshold(streams_minmax, streams_threshold, streams_green_zone,
                           streams_changed, streams_expected, "streams");
