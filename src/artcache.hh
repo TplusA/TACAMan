@@ -193,6 +193,56 @@ class Statistics
     }
 };
 
+class Timestamp
+{
+  private:
+    struct timeval timestamps_[2];
+    bool overflown_;
+
+  public:
+    Timestamp(const Timestamp &) = delete;
+    Timestamp &operator=(const Timestamp &) = delete;
+
+    explicit Timestamp():
+        timestamps_{0},
+        overflown_(false)
+    {}
+
+    void reset()
+    {
+        timestamps_[0].tv_sec = 0;
+        timestamps_[0].tv_usec = 0;
+        overflown_ = false;
+    }
+
+    bool reset(const Path &path);
+
+    bool increment()
+    {
+        struct timeval &access_time(timestamps_[0]);
+
+        if(overflown_)
+            return false;
+
+        if(++access_time.tv_usec < 1000L * 1000L)
+            return true;
+
+        access_time.tv_usec = 0;
+
+        if(access_time.tv_sec < std::numeric_limits<long>::max())
+            ++access_time.tv_sec;
+        else
+            overflown_ = true;
+
+        return !overflown_;
+    }
+
+    bool is_overflown() const { return overflown_; }
+
+    bool set_access_time(const Path &path) const;
+    bool set_access_time(const std::string &path) const;
+};
+
 class Manager
 {
   public:
@@ -207,11 +257,13 @@ class Manager
     const Path sources_path_;
     const Path objects_path_;
 
-    Statistics statistics_;
+    mutable Statistics statistics_;
     const Statistics &upper_limits_;
     const Statistics lower_limits_;
 
     PendingIface &pending_;
+
+    mutable Timestamp timestamp_for_hot_path_;
 
   public:
     Manager(const Manager &) = delete;
@@ -328,9 +380,13 @@ class Manager
                            const std::string &format,
                            std::unique_ptr<Object> &obj) const;
 
-    GCResult do_gc();
+    void mark_hot_path(const std::string &stream_key,
+                       const std::string &source_hash,
+                       const std::string &object_hash) const;
 
     void reset();
+
+    GCResult do_gc();
 };
 
 void compute_hash(Manager::Hash &hash, const char *str);

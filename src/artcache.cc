@@ -66,6 +66,53 @@ struct CountData: public TraverseData
     {}
 };
 
+struct CollectMinMaxTimestampsData: public TraverseData
+{
+    const std::string *const append_filename_;
+
+    size_t count_;
+    struct timespec min_;
+    struct timespec max_;
+
+    explicit CollectMinMaxTimestampsData(const std::string &root,
+                                         const std::string *append_filename):
+        TraverseData(root),
+        append_filename_(append_filename),
+        count_(0),
+        min_{ std::numeric_limits<decltype(timespec::tv_sec)>::max(),
+              std::numeric_limits<decltype(timespec::tv_nsec)>::max() },
+        max_{ std::numeric_limits<decltype(timespec::tv_sec)>::min(),
+              std::numeric_limits<decltype(timespec::tv_nsec)>::min() }
+    {}
+
+    explicit CollectMinMaxTimestampsData(std::string &&root,
+                                         const std::string *append_filename):
+        TraverseData(std::move(root)),
+        append_filename_(append_filename),
+        count_(0),
+        min_{ std::numeric_limits<decltype(timespec::tv_sec)>::max(),
+              std::numeric_limits<decltype(timespec::tv_nsec)>::max() },
+        max_{ std::numeric_limits<decltype(timespec::tv_sec)>::min(),
+              std::numeric_limits<decltype(timespec::tv_nsec)>::min() }
+    {}
+};
+
+struct CollectTimestampsData: public TraverseData
+{
+    const std::string *const append_filename_;
+    std::vector<std::pair<std::string, uint64_t>> access_times_;
+
+    explicit CollectTimestampsData(const std::string &root, const std::string *append_filename):
+        TraverseData(root),
+        append_filename_(append_filename)
+    {}
+
+    explicit CollectTimestampsData(std::string &&root, const std::string *append_filename):
+        TraverseData(std::move(root)),
+        append_filename_(append_filename)
+    {}
+};
+
 static inline bool is_valid_hexchar(const char &ch)
 {
     return (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f');
@@ -106,9 +153,103 @@ struct TraverseTraits<struct CountData>
     }
 
     static inline int traverse_found_hashdir(CountData &cd,
-                                             const char *path)
+                                             const char *path,
+                                             unsigned char dtype)
     {
         ++cd.count_;
+        return 0;
+    }
+};
+
+template <>
+struct TraverseTraits<struct CollectMinMaxTimestampsData>
+{
+    static inline int traverse_sub_failed(CollectMinMaxTimestampsData &cd)
+    {
+        msg_error(errno, LOG_ALERT, "Failed collecting timestamps below %s",
+                  cd.temp_path_.c_str());
+        return 0;
+    }
+
+    static inline int traverse_found_hashdir(CollectMinMaxTimestampsData &cd,
+                                             const char *path,
+                                             unsigned char dtype)
+    {
+        std::string p(cd.temp_path_ + '/' + path);
+
+        if(cd.append_filename_ != nullptr)
+        {
+            if(dtype != DT_DIR)
+            {
+                BUG("Path %s is not a directory", p.c_str());
+                return 0;
+            }
+
+            p += '/' + *cd.append_filename_;
+        }
+
+        struct stat buf;
+
+        if(os_lstat(p.c_str(), &buf) < 0)
+            return 0;
+
+        const auto &t(buf.st_atim);
+
+        if(t.tv_sec < cd.min_.tv_sec ||
+           (t.tv_sec == cd.min_.tv_sec && t.tv_nsec < cd.min_.tv_nsec))
+        {
+            cd.min_ = t;
+        }
+
+        if(t.tv_sec > cd.max_.tv_sec ||
+           (t.tv_sec == cd.max_.tv_sec && t.tv_nsec > cd.max_.tv_nsec))
+        {
+            cd.max_ = t;
+        }
+
+        ++cd.count_;
+
+        return 0;
+    }
+};
+
+template <>
+struct TraverseTraits<struct CollectTimestampsData>
+{
+    static inline int traverse_sub_failed(CollectTimestampsData &cd)
+    {
+        msg_error(errno, LOG_ALERT, "Failed collecting timestamps below %s",
+                  cd.temp_path_.c_str());
+        return 0;
+    }
+
+    static inline int traverse_found_hashdir(CollectTimestampsData &cd,
+                                             const char *path,
+                                             unsigned char dtype)
+    {
+        const size_t hash_start_offset(cd.temp_path_.length() - 2);
+        std::string p(cd.temp_path_ + '/' + path);
+
+        if(cd.append_filename_ != nullptr)
+        {
+            if(dtype != DT_DIR)
+            {
+                BUG("Path %s is not a directory", p.c_str());
+                return 0;
+            }
+
+            p += '/' + *cd.append_filename_;
+        }
+
+        struct stat buf;
+
+        if(os_lstat(p.c_str(), &buf) < 0)
+            return 0;
+
+        cd.access_times_.emplace_back(std::make_pair(
+                std::move(cd.temp_path_.substr(hash_start_offset, 2) + path),
+                buf.st_atim.tv_sec * 1000UL * 1000UL + buf.st_atim.tv_nsec / 1000));
+
         return 0;
     }
 };
@@ -120,7 +261,7 @@ static int traverse_sub(const char *path, unsigned char dtype, void *user_data)
 
     if(ArtCache::is_valid_hash(path))
     {
-        const int ret(Traits::traverse_found_hashdir(cd, path));
+        const int ret(Traits::traverse_found_hashdir(cd, path, dtype));
 
         if(ret != 0)
             return ret;
@@ -201,8 +342,36 @@ void ArtCache::Statistics::dump(const char *what) const
               changed_ ? "" : "not ");
 }
 
+bool ArtCache::Timestamp::reset(const ArtCache::Path &path)
+{
+    struct stat buf;
+
+    if(os_lstat(path.str().c_str(), &buf) < 0)
+    {
+        reset();
+        return false;
+    }
+
+    timestamps_[0].tv_sec = buf.st_atim.tv_sec;
+    timestamps_[0].tv_usec = buf.st_atim.tv_nsec / 1000;
+
+    return true;
+}
+
+bool ArtCache::Timestamp::set_access_time(const ArtCache::Path &path) const
+{
+    return os_path_utimes(path.str().c_str(), timestamps_);
+}
+
+bool ArtCache::Timestamp::set_access_time(const std::string &path) const
+{
+    return os_path_utimes(path.c_str(), timestamps_);
+}
+
 bool ArtCache::Manager::init()
 {
+    timestamp_for_hot_path_.reset(objects_path_);
+
     if(!os_mkdir_hierarchy(sources_path_.str().c_str(), false) ||
        !os_mkdir_hierarchy(objects_path_.str().c_str(), false))
     {
@@ -245,6 +414,7 @@ void ArtCache::Manager::reset()
 {
     os_system_formatted("rm -r '%s'", cache_root_.c_str());
     statistics_.reset();
+    timestamp_for_hot_path_.reset();
 }
 
 static inline ArtCache::Path mk_stream_key_dirname(const std::string &cache_root,
@@ -299,8 +469,9 @@ static ArtCache::AddKeyResult mk_stream_key_entry(const ArtCache::Path &stream_k
 }
 
 template <typename T>
-static T touch(const std::string &path, const T retval_on_success,
-               const T retval_on_disk_full, const T retval_on_io_error)
+static T touch(const std::string &path, const ArtCache::Timestamp &timestamp,
+               const T retval_on_success, const T retval_on_disk_full,
+               const T retval_on_io_error)
 {
     int fd = os_file_new(path.c_str());
 
@@ -310,6 +481,8 @@ static T touch(const std::string &path, const T retval_on_success,
             : retval_on_io_error;
 
     os_file_close(fd);
+
+    timestamp.set_access_time(path);
 
     return retval_on_success;
 }
@@ -355,7 +528,8 @@ static int delete_file(const char *path, unsigned char dtype, void *user_data)
 }
 
 static ArtCache::AddSourceResult mk_source_entry(const ArtCache::Path &sources_root,
-                                                 const std::string &source_hash)
+                                                 const std::string &source_hash,
+                                                 const ArtCache::Timestamp &timestamp)
 {
     ArtCache::Path temp(sources_root);
     temp.append_hash(source_hash);
@@ -391,7 +565,7 @@ static ArtCache::AddSourceResult mk_source_entry(const ArtCache::Path &sources_r
         os_foreach_in_path(srcdir.str().c_str(), delete_file, &srcdir);
     }
 
-    return touch(temp.str().c_str(),
+    return touch(temp.str().c_str(), timestamp,
                  ArtCache::AddSourceResult::INSERTED,
                  ArtCache::AddSourceResult::DISK_FULL,
                  ArtCache::AddSourceResult::IO_ERROR);
@@ -480,8 +654,8 @@ ArtCache::Manager::add_stream_key_for_source(const ArtCache::StreamPrioPair &str
 {
     std::lock_guard<std::mutex> lock(lock_);
 
-    ArtCache::AddSourceResult src_result = mk_source_entry(sources_path_,
-                                                           source_hash);
+    const ArtCache::AddSourceResult src_result =
+        mk_source_entry(sources_path_, source_hash, timestamp_for_hot_path_);
     bool have_new_source = false;
 
     switch(src_result)
@@ -1008,6 +1182,32 @@ ArtCache::Manager::lookup(const std::string &stream_key,
         : result;
 }
 
+void ArtCache::Manager::mark_hot_path(const std::string &stream_key,
+                                      const std::string &source_hash,
+                                      const std::string &object_hash) const
+{
+    timestamp_for_hot_path_.increment();
+
+    {
+        timestamp_for_hot_path_.set_access_time(objects_path_);
+
+        ArtCache::Path p(objects_path_);
+        p.append_hash(object_hash, true);
+        timestamp_for_hot_path_.set_access_time(p);
+    }
+
+    {
+        ArtCache::Path p(cache_root_);
+        p.append_hash(stream_key);
+        timestamp_for_hot_path_.set_access_time(p);
+    }
+
+    {
+        const ArtCache::Path p(mk_source_reffile_name(sources_path_, source_hash));
+        timestamp_for_hot_path_.set_access_time(p);
+    }
+}
+
 ArtCache::LookupResult
 ArtCache::Manager::do_lookup(const std::string &stream_key, uint8_t priority,
                              const std::string &object_hash,
@@ -1056,6 +1256,12 @@ ArtCache::Manager::do_lookup(const std::string &stream_key, uint8_t priority,
 
             obj.reset(new ArtCache::Object(priority, object_hash));
 
+            if(obj != nullptr)
+            {
+                mark_hot_path(stream_key, source_hash, obj->hash_);
+                statistics_.mark_for_gc();
+            }
+
             return LookupResult::FOUND;
         }
     }
@@ -1090,6 +1296,12 @@ ArtCache::Manager::do_lookup(const std::string &stream_key, uint8_t priority,
 
     os_unmap_file(&mapped);
 
+    if(obj != nullptr)
+    {
+        mark_hot_path(stream_key, source_hash, obj->hash_);
+        statistics_.mark_for_gc();
+    }
+
     return (obj != nullptr) ? LookupResult::FOUND : LookupResult::IO_ERROR;
 }
 
@@ -1100,12 +1312,6 @@ ArtCache::GCResult ArtCache::Manager::gc()
     return statistics_.exceeds_limits(upper_limits_)
         ? do_gc()
         : GCResult::NOT_REQUIRED;
-}
-
-ArtCache::GCResult ArtCache::Manager::do_gc()
-{
-    BUG("%s(): not implemented", __func__);
-    return GCResult::NOT_POSSIBLE;
 }
 
 void ArtCache::compute_hash(ArtCache::Manager::Hash &hash, const char *str)
@@ -1128,4 +1334,447 @@ void ArtCache::hash_to_string(const ArtCache::Manager::Hash &hash,
                               std::string &hash_string)
 {
     MD5::to_string(hash, hash_string);
+}
+
+static std::chrono::nanoseconds delta_us(const struct timespec &a, const struct timespec &b)
+{
+    if(b.tv_sec < a.tv_sec)
+        return std::chrono::nanoseconds(0);
+
+    if(a.tv_sec == b.tv_sec)
+        return (b.tv_nsec > a.tv_nsec
+                ? std::chrono::nanoseconds(b.tv_nsec - a.tv_nsec)
+                : std::chrono::nanoseconds(0));
+
+    if(b.tv_nsec >= a.tv_nsec)
+        return std::chrono::seconds(b.tv_sec - a.tv_sec) +
+               std::chrono::nanoseconds(b.tv_nsec - a.tv_nsec);
+    else
+        return std::chrono::seconds(b.tv_sec - a.tv_sec - 1) +
+               (std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::seconds(1)) -
+                std::chrono::nanoseconds(a.tv_nsec - b.tv_nsec));
+}
+
+static void add_to_timespec(struct timespec &t,
+                            const std::chrono::microseconds &us)
+{
+    const std::chrono::microseconds remainder_us(us % (1000UL * 1000UL));
+
+    t.tv_sec += std::chrono::duration_cast<std::chrono::seconds>(us).count();
+
+    const std::chrono::nanoseconds nanos_until_overflow(
+            std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::seconds(1)) -
+            remainder_us);
+
+    if(nanos_until_overflow.count() > t.tv_nsec)
+        t.tv_nsec += std::chrono::duration_cast<std::chrono::nanoseconds>(remainder_us).count();
+    else
+    {
+        ++t.tv_sec;
+        t.tv_nsec -= nanos_until_overflow.count();
+    }
+}
+
+static bool operator>=(const struct timespec &a, const struct timespec &b)
+{
+    return (a.tv_sec > b.tv_sec) ||
+           (a.tv_sec == b.tv_sec && a.tv_nsec >= b.tv_nsec);
+}
+
+static bool operator>(const struct timespec &a, const struct timespec &b)
+{
+    return (a.tv_sec > b.tv_sec) ||
+           (a.tv_sec == b.tv_sec && a.tv_nsec > b.tv_nsec);
+}
+
+static void compute_threshold(const CollectMinMaxTimestampsData &cd,
+                              struct timespec &threshold,
+                              std::chrono::microseconds &green_zone,
+                              bool check_expected_count, size_t expected_count,
+                              const char *what)
+{
+    static constexpr uint8_t BIAS = 5;
+    static_assert(ArtCache::Manager::LIMITS_LOW_HI_PERCENTAGE > 10 * BIAS,
+                  "Bias too large for threshold computation");
+
+    const auto delta = delta_us(cd.min_, cd.max_);
+
+    /*
+     * The estimate below is a relative file age. Files older than this
+     * estimate (in relation to the oldest file) are subject to removal.
+     *
+     * We assume uniform distribution of timestamps within the delta range
+     * determined above. Under this assumption, a good estimate for a threshold
+     * is the age of the oldest file plus a fraction of the difference between
+     * oldest and youngest file. The fraction is the percentage that our limits
+     * have been derived from.
+     *
+     * Such a threshold should bring us back to just below our limits after
+     * decimating files below that threshold, but we substract a little,
+     * arbitrary bias from the percentage value to increase the likelihood that
+     * this will happen after the first iteration.
+     */
+    const std::chrono::microseconds estimate(
+            (std::chrono::duration_cast<std::chrono::microseconds>(delta) *
+             (ArtCache::Manager::LIMITS_LOW_HI_PERCENTAGE - BIAS)) / 100);
+
+    green_zone = std::chrono::duration_cast<std::chrono::microseconds>(delta - estimate);
+
+    threshold = cd.min_;
+    add_to_timespec(threshold, estimate);
+
+    msg_vinfo(MESSAGE_LEVEL_DEBUG,
+              "GC: %5zu %s, min %10lu.%09lus max %10lu.%09lus -> threshold %lu.%lus",
+              cd.count_, what,
+              cd.min_.tv_sec, cd.min_.tv_nsec,
+              cd.max_.tv_sec, cd.max_.tv_nsec,
+              threshold.tv_sec, threshold.tv_nsec);
+
+    if(check_expected_count && cd.count_ != expected_count)
+        BUG("GC: expected %zu %s, but found %zu",
+            expected_count, what, cd.count_);
+}
+
+static void collect_statistics(CollectMinMaxTimestampsData &cd,
+                               const std::string &path)
+{
+    msg_vinfo(MESSAGE_LEVEL_DIAG, "GC: traversing path \"%s\"", path.c_str());
+    os_foreach_in_path(path.c_str(),
+                       traverse_top<CollectMinMaxTimestampsData>, &cd);
+    msg_vinfo(MESSAGE_LEVEL_DIAG, "GC: path traversal done");
+}
+
+struct DeletedCounts
+{
+    size_t streams_;
+    size_t sources_;
+    size_t objects_;
+};
+
+enum class DecimateType
+{
+    STREAMS,
+    SOURCES,
+    OBJECTS,
+};
+
+template <DecimateType DT>
+struct DecimateCacheEntriesData: public TraverseData
+{
+    const CollectMinMaxTimestampsData &cd_;
+    const struct timespec &threshold_;
+
+    struct timespec oldest_remaining_;
+
+    std::mutex &manager_lock_;
+    DeletedCounts &deleted_;
+    ArtCache::Statistics &statistics_;
+
+    explicit DecimateCacheEntriesData(const std::string &root,
+                                      CollectMinMaxTimestampsData &cd,
+                                      const struct timespec &threshold,
+                                      DeletedCounts &deleted,
+                                      ArtCache::Statistics &statistics,
+                                      std::mutex &manager_lock):
+        TraverseData(root),
+        cd_(cd),
+        threshold_(threshold),
+        oldest_remaining_{ std::numeric_limits<decltype(timespec::tv_sec)>::max(),
+                           std::numeric_limits<decltype(timespec::tv_nsec)>::max() },
+        manager_lock_(manager_lock),
+        deleted_(deleted),
+        statistics_(statistics)
+    {}
+
+    explicit DecimateCacheEntriesData(std::string &&root,
+                                      CollectMinMaxTimestampsData &cd,
+                                      const struct timespec &threshold,
+                                      DeletedCounts &deleted,
+                                      ArtCache::Statistics &statistics,
+                                      std::mutex &manager_lock):
+        TraverseData(std::move(root)),
+        cd_(cd),
+        threshold_(threshold),
+        oldest_remaining_{ std::numeric_limits<decltype(timespec::tv_sec)>::max(),
+                           std::numeric_limits<decltype(timespec::tv_nsec)>::max() },
+        manager_lock_(manager_lock),
+        deleted_(deleted),
+        statistics_(statistics)
+    {}
+};
+
+template <>
+struct TraverseTraits<struct DecimateCacheEntriesData<DecimateType::STREAMS>>
+{
+    using DT = struct DecimateCacheEntriesData<DecimateType::STREAMS>;
+
+    static inline int traverse_sub_failed(DT &cd) { return 0; }
+
+    static inline int traverse_found_hashdir(DT &cd, const char *path,
+                                             unsigned char dtype)
+    {
+        if(dtype != DT_DIR)
+            return 0;
+
+        const std::string p(cd.temp_path_ + '/' + path);
+
+        std::lock_guard<std::mutex> lock(cd.manager_lock_);
+
+        struct stat buf;
+        if(os_lstat(p.c_str(), &buf) < 0)
+            return 0;
+
+        if(buf.st_atim >= cd.threshold_)
+        {
+            msg_vinfo(MESSAGE_LEVEL_TRACE, "GC: keeping stream key %s", p.c_str());
+
+            if(cd.oldest_remaining_ > buf.st_atim)
+                cd.oldest_remaining_ = buf.st_atim;
+        }
+        else
+        {
+            msg_vinfo(MESSAGE_LEVEL_DEBUG, "GC: remove stream key %s", p.c_str());
+            os_system_formatted("rm -r '%s'", p.c_str());
+
+            ++cd.deleted_.streams_;
+            cd.statistics_.remove_stream(true);
+        }
+
+        return 0;
+    }
+};
+
+template <>
+struct TraverseTraits<struct DecimateCacheEntriesData<DecimateType::SOURCES>>
+{
+    using DT = struct DecimateCacheEntriesData<DecimateType::SOURCES>;
+
+    static inline int traverse_sub_failed(DT &cd) { return 0; }
+
+    static inline int traverse_found_hashdir(DT &cd, const char *path,
+                                             unsigned char dtype)
+    {
+        if(dtype != DT_DIR)
+            return 0;
+
+        const std::string p(cd.temp_path_ + '/' + path);
+
+        ArtCache::Path ref(p);
+        ref.append_part(REFFILE_NAME, true);
+
+        std::lock_guard<std::mutex> lock(cd.manager_lock_);
+
+        struct stat buf;
+
+        if(os_lstat(ref.str().c_str(), &buf) == 0 &&
+           (buf.st_nlink > 1 || buf.st_atim >= cd.threshold_))
+        {
+            msg_vinfo(MESSAGE_LEVEL_TRACE, "GC: keeping source %s", p.c_str());
+
+            if(cd.oldest_remaining_ > buf.st_atim)
+                cd.oldest_remaining_ = buf.st_atim;
+        }
+        else
+        {
+            msg_vinfo(MESSAGE_LEVEL_DEBUG, "GC: remove source %s", p.c_str());
+            os_system_formatted("rm -r '%s'", p.c_str());
+
+            ++cd.deleted_.sources_;
+            cd.statistics_.remove_source(true);
+        }
+
+        return 0;
+    }
+};
+
+template <>
+struct TraverseTraits<struct DecimateCacheEntriesData<DecimateType::OBJECTS>>
+{
+    using DT = struct DecimateCacheEntriesData<DecimateType::OBJECTS>;
+
+    static inline int traverse_sub_failed(DT &cd) { return 0; }
+
+    static inline int traverse_found_hashdir(DT &cd, const char *path,
+                                             unsigned char dtype)
+    {
+        if(dtype != DT_REG)
+            return 0;
+
+        const std::string p(cd.temp_path_ + '/' + path);
+
+        std::lock_guard<std::mutex> lock(cd.manager_lock_);
+
+        struct stat buf;
+
+        if(os_lstat(p.c_str(), &buf) == 0 &&
+           (buf.st_nlink > 1 || buf.st_atim >= cd.threshold_))
+        {
+            msg_vinfo(MESSAGE_LEVEL_TRACE, "GC: keeping object %s", p.c_str());
+
+            if(cd.oldest_remaining_ > buf.st_atim)
+                cd.oldest_remaining_ = buf.st_atim;
+        }
+        else
+        {
+            msg_vinfo(MESSAGE_LEVEL_DEBUG, "GC: remove object %s", p.c_str());
+            os_file_delete(p.c_str());
+
+            ++cd.deleted_.objects_;
+            cd.statistics_.remove_object(true);
+        }
+
+        return 0;
+    }
+};
+
+template <DecimateType DT>
+static void decimate(CollectMinMaxTimestampsData &cd,
+                     const struct timespec &threshold,
+                     DeletedCounts &deleted_counts,
+                     ArtCache::Statistics &statistics, const std::string &path,
+                     std::mutex &manager_lock)
+{
+    cd.temp_path_.resize(cd.temp_path_original_len_);
+
+    DecimateCacheEntriesData<DT> data(cd.temp_path_, cd, threshold,
+                                      deleted_counts, statistics,
+                                      manager_lock);
+
+    if(os_foreach_in_path(path.c_str(), traverse_top<decltype(data)>, &data) == 0 &&
+       data.oldest_remaining_.tv_sec < std::numeric_limits<decltype(timespec::tv_sec)>::max())
+        cd.min_ = data.oldest_remaining_;
+}
+
+static int contains_anything(const char *path, unsigned char dtype, void *user_data)
+{
+    return 1;
+}
+
+static int delete_empty_cache_directory(const char *path,
+                                        unsigned char dtype, void *user_data)
+{
+    if(dtype != DT_DIR)
+        return 0;
+
+    if(!ArtCache::is_valid_hash(path, 2) || path[2] != '\0')
+        return 0;
+
+    auto temp(*static_cast<const ArtCache::Path *>(user_data));
+    temp.append_part(path);
+
+    if(os_foreach_in_path(temp.str().c_str(), contains_anything, nullptr) == 0)
+    {
+        msg_vinfo(MESSAGE_LEVEL_DEBUG, "GC: delete dir \"%s\"", temp.str().c_str());
+        os_rmdir(temp.str().c_str(), true);
+    }
+    else
+        msg_vinfo(MESSAGE_LEVEL_TRACE, "GC: keep dir \"%s\"", temp.str().c_str());
+
+    return 0;
+}
+
+static void delete_empty_middle_directories(const ArtCache::Path &path)
+{
+    os_foreach_in_path(path.str().c_str(), delete_empty_cache_directory,
+                       const_cast<ArtCache::Path *>(&path));
+}
+
+ArtCache::GCResult ArtCache::Manager::do_gc()
+{
+    std::unique_lock<std::mutex> lock(lock_);
+
+    bool need_new_statistics = true;
+
+    CollectMinMaxTimestampsData streams_minmax(std::move(std::string(cache_root_ + '/')), nullptr);
+    CollectMinMaxTimestampsData sources_minmax(sources_path_.str(), &REFFILE_NAME);
+    CollectMinMaxTimestampsData objects_minmax(objects_path_.str(), nullptr);
+
+    struct timespec streams_threshold;
+    struct timespec sources_threshold;
+    struct timespec objects_threshold;
+
+    std::chrono::microseconds streams_green_zone;
+    std::chrono::microseconds sources_green_zone;
+    std::chrono::microseconds objects_green_zone;
+
+    static constexpr int MAX_FAIL_ROUNDS = 2;
+    int fail_rounds_left = MAX_FAIL_ROUNDS;
+    bool removed_anything = false;
+
+    do
+    {
+        if(need_new_statistics)
+            msg_info("GC: Collecting cache statistics");
+
+        const bool streams_changed(statistics_.mark_unchanged());
+        const size_t streams_expected(statistics_.get_number_of_stream_keys());
+
+        if(need_new_statistics)
+            collect_statistics(streams_minmax, cache_root_);
+
+        const bool sources_changed(statistics_.mark_unchanged());
+        const size_t sources_expected(statistics_.get_number_of_sources());
+
+        if(need_new_statistics)
+            collect_statistics(sources_minmax, sources_path_.str());
+
+        const bool objects_changed(statistics_.mark_unchanged());
+        const size_t objects_expected(statistics_.get_number_of_objects());
+
+        if(need_new_statistics)
+            collect_statistics(objects_minmax, objects_path_.str());
+
+        lock.unlock();
+
+        compute_threshold(streams_minmax, streams_threshold, streams_green_zone,
+                          streams_changed, streams_expected, "streams");
+        compute_threshold(sources_minmax, sources_threshold, sources_green_zone,
+                          sources_changed, sources_expected, "sources");
+        compute_threshold(objects_minmax, objects_threshold, objects_green_zone,
+                          objects_changed, objects_expected, "objects");
+
+        need_new_statistics = streams_changed || sources_changed || objects_changed;
+
+        msg_info("GC: Removing objects");
+        struct DeletedCounts deleted_counts{0};
+
+        /* keep this order for most effective decimation */
+        decimate<DecimateType::STREAMS>(streams_minmax, streams_threshold,
+                                        deleted_counts, statistics_,
+                                        cache_root_, lock_);
+        decimate<DecimateType::SOURCES>(sources_minmax, sources_threshold,
+                                        deleted_counts, statistics_,
+                                        sources_path_.str(), lock_);
+        decimate<DecimateType::OBJECTS>(objects_minmax, objects_threshold,
+                                        deleted_counts, statistics_,
+                                        objects_path_.str(), lock_);
+
+        lock.lock();
+        delete_empty_middle_directories(Path(cache_root_));
+        delete_empty_middle_directories(sources_path_);
+        delete_empty_middle_directories(objects_path_);
+        lock.unlock();
+
+        if(deleted_counts.streams_ > 0 || deleted_counts.sources_ > 0 || deleted_counts.objects_ > 0)
+        {
+            fail_rounds_left = MAX_FAIL_ROUNDS;
+            removed_anything = true;
+            msg_info("GC: Removed %zu streams, %zu sources, %zu objects",
+                     deleted_counts.streams_, deleted_counts.sources_,
+                     deleted_counts.objects_);
+        }
+        else
+        {
+            msg_info("GC: Failed removing anything, %u rounds left", fail_rounds_left);
+            --fail_rounds_left;
+        }
+
+        lock.lock();
+    }
+    while(fail_rounds_left >= 0 && statistics_.exceeds_limits(lower_limits_));
+
+    if(removed_anything)
+        statistics_.dump("Cache statistics after garbage collection");
+
+    return removed_anything ? GCResult::DEFLATED : GCResult::NOT_POSSIBLE;
 }
