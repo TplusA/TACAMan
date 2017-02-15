@@ -30,25 +30,38 @@
 
 static const std::string REFFILE_NAME(".ref");
 
-struct CountData
+struct TraverseData
 {
-    CountData(const CountData &) = delete;
-    CountData &operator=(const CountData &) = delete;
-
     std::string temp_path_;
     const size_t temp_path_original_len_;
 
+    TraverseData(const TraverseData &) = delete;
+    TraverseData &operator=(const TraverseData &) = delete;
+
+    explicit TraverseData(const std::string &root):
+        temp_path_(root),
+        temp_path_original_len_(temp_path_.length())
+    {}
+
+    explicit TraverseData(std::string &&root):
+        temp_path_(std::move(root)),
+        temp_path_original_len_(temp_path_.length())
+    {}
+
+    virtual ~TraverseData() {}
+};
+
+struct CountData: public TraverseData
+{
     size_t count_;
 
     explicit CountData(const std::string &root):
-        temp_path_(root),
-        temp_path_original_len_(root.length()),
+        TraverseData(root),
         count_(0)
     {}
 
     explicit CountData(std::string &&root):
-        temp_path_(root),
-        temp_path_original_len_(root.length()),
+        TraverseData(std::move(root)),
         count_(0)
     {}
 };
