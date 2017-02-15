@@ -144,6 +144,7 @@ static bool count_cached_hashes(std::string path, size_t &count)
     {
         msg_error(errno, LOG_ALERT,
                   "Failed reading cache below \"%s\"", path.c_str());
+        count = 0;
         return -1;
     }
 
@@ -179,11 +180,12 @@ void ArtCache::Statistics::dump(const char *what) const
     static constexpr char plural[] = "s";
 
     msg_vinfo(MESSAGE_LEVEL_INFO_MIN,
-              "%s: %zu object%s, %zu source%s, %zu stream key%s",
+              "%s: %zu object%s, %zu source%s, %zu stream key%s, %schanged",
               what,
               number_of_objects_, number_of_objects_ != 1 ? plural : "",
               number_of_sources_, number_of_sources_ != 1 ? plural : "",
-              number_of_stream_keys_, number_of_stream_keys_ != 1 ? plural : "");
+              number_of_stream_keys_, number_of_stream_keys_ != 1 ? plural : "",
+              changed_ ? "" : "not ");
 }
 
 bool ArtCache::Manager::init()
@@ -197,10 +199,16 @@ bool ArtCache::Manager::init()
 
     msg_vinfo(MESSAGE_LEVEL_DIAG, "Root \"%s\"", cache_root_.c_str());
 
-    if(!count_cached_hashes(cache_root_ + '/', statistics_.number_of_stream_keys_) ||
-       !count_cached_hashes(sources_path_.str(), statistics_.number_of_sources_) ||
-       !count_cached_hashes(objects_path_.str(), statistics_.number_of_objects_))
+    size_t keys, sources, objects;
+
+    if(!count_cached_hashes(cache_root_ + '/', keys) ||
+       !count_cached_hashes(sources_path_.str(), sources) ||
+       !count_cached_hashes(objects_path_.str(), objects))
         reset();
+    else
+        statistics_.set(keys, sources, objects);
+
+    statistics_.mark_unchanged();
 
     switch(gc())
     {
@@ -464,7 +472,7 @@ ArtCache::Manager::add_stream_key_for_source(const ArtCache::StreamPrioPair &str
     {
       case AddSourceResult::INSERTED:
         have_new_source = true;
-        ++statistics_.number_of_sources_;
+        statistics_.add_source();
         break;
 
       case AddSourceResult::NOT_CHANGED:
@@ -513,7 +521,7 @@ ArtCache::Manager::add_stream_key_for_source(const ArtCache::StreamPrioPair &str
 
       case AddKeyResult::INSERTED:
         /* key didn't exist, so we can link to source entry right now */
-        ++statistics_.number_of_stream_keys_;
+        statistics_.add_stream();
         return link_to_source(stream_key_dir, sources_path_, source_hash,
                               have_new_source ? AddKeyResult::SOURCE_UNKNOWN : AddKeyResult::INSERTED);
 
@@ -628,7 +636,7 @@ move_objects_and_update_source(const std::vector<std::string> &import_objects,
             msg_vinfo(MESSAGE_LEVEL_DEBUG, "New object %s (%s)",
                       object_hash_string.c_str(), fname.c_str());
             added_objects = true;
-            ++statistics.number_of_objects_;
+            statistics.add_object();
             break;
 
           case ArtCache::AddObjectResult::IO_ERROR:
@@ -816,7 +824,7 @@ void ArtCache::Manager::delete_key(const StreamPrioPair &stream_key)
         return;
     }
 
-    --statistics_.number_of_stream_keys_;
+    statistics_.remove_stream();
 
     msg_vinfo(MESSAGE_LEVEL_DIAG, "Deleted key %s[%u]",
               stream_key.stream_key_.c_str(), stream_key.priority_);
@@ -876,7 +884,7 @@ bool ArtCache::Manager::delete_source(const std::string &source_hash)
         return false;
     }
 
-    --statistics_.number_of_sources_;
+    statistics_.remove_source();
 
     msg_vinfo(MESSAGE_LEVEL_DIAG, "Deleted source %s", source_hash.c_str());
 
@@ -899,7 +907,7 @@ bool ArtCache::Manager::delete_object(const std::string &object_hash)
         return false;
     }
 
-    --statistics_.number_of_objects_;
+    statistics_.remove_object();
 
     msg_vinfo(MESSAGE_LEVEL_DIAG, "Deleted object %s", object_hash.c_str());
 

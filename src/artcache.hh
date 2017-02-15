@@ -26,6 +26,7 @@
 #include "cachepath.hh"
 #include "pending.hh"
 #include "md5.hh"
+#include "messages.h"
 
 /*!
  * \addtogroup cache Cover Art cache management
@@ -88,18 +89,22 @@ enum class GCResult
 
 class Statistics
 {
-  public:
+  private:
     size_t number_of_stream_keys_;
     size_t number_of_sources_;
     size_t number_of_objects_;
 
+    bool changed_;
+
+  public:
     Statistics(const Statistics &) = delete;
     Statistics &operator=(const Statistics &) = delete;
 
     explicit Statistics():
         number_of_stream_keys_(0),
         number_of_sources_(0),
-        number_of_objects_(0)
+        number_of_objects_(0),
+        changed_(false)
     {}
 
     explicit Statistics(size_t number_of_stream_keys,
@@ -107,10 +112,12 @@ class Statistics
                         size_t number_of_objects):
         number_of_stream_keys_(number_of_stream_keys),
         number_of_sources_(number_of_sources),
-        number_of_objects_(number_of_objects)
+        number_of_objects_(number_of_objects),
+        changed_(false)
     {}
 
-    Statistics(const Statistics &src, uint8_t percentage)
+    explicit Statistics(const Statistics &src, uint8_t percentage):
+        changed_(src.changed_)
     {
         if(percentage > 100)
             percentage = 100;
@@ -125,7 +132,29 @@ class Statistics
         number_of_stream_keys_ = 0;
         number_of_sources_ = 0;
         number_of_objects_ = 0;
+        changed_ = false;
     }
+
+    void set(size_t number_of_stream_keys, size_t number_of_sources,
+             size_t number_of_objects)
+    {
+        number_of_stream_keys_ = number_of_stream_keys;
+        number_of_sources_ = number_of_sources;
+        number_of_objects_ = number_of_objects;
+        changed_ = true;
+    }
+
+    bool mark_unchanged()
+    {
+        if(!changed_)
+            return false;
+
+        changed_ = false;
+
+        return true;
+    }
+
+    void mark_for_gc() { changed_ = true; }
 
     bool exceeds_limits(const Statistics &limits) const
     {
@@ -134,7 +163,34 @@ class Statistics
                number_of_objects_ > limits.number_of_objects_;
     }
 
+    size_t get_number_of_stream_keys() const { return number_of_stream_keys_; }
+    size_t get_number_of_sources() const     { return number_of_sources_; }
+    size_t get_number_of_objects() const     { return number_of_objects_; }
+
+    void add_stream() { add_to_counter(number_of_stream_keys_); }
+    void add_source() { add_to_counter(number_of_sources_); }
+    void add_object() { add_to_counter(number_of_objects_); }
+    void remove_stream(bool is_gc = false) { sub_from_counter(number_of_stream_keys_, is_gc); }
+    void remove_source(bool is_gc = false) { sub_from_counter(number_of_sources_, is_gc); }
+    void remove_object(bool is_gc = false) { sub_from_counter(number_of_objects_, is_gc); }
+
     void dump(const char *what) const;
+
+  private:
+    void add_to_counter(size_t &counter)
+    {
+        ++counter;
+        changed_ = true;
+    }
+
+    void sub_from_counter(size_t &counter, bool is_gc)
+    {
+        log_assert(counter > 0);
+        --counter;
+
+        if(!is_gc)
+            changed_ = true;
+    }
 };
 
 class Manager
