@@ -198,6 +198,8 @@ class Manager
   public:
     using Hash = MD5::Hash;
 
+    static constexpr uint8_t LIMITS_LOW_HI_PERCENTAGE = 60;
+
   private:
     mutable std::mutex lock_;
 
@@ -221,7 +223,7 @@ class Manager
         sources_path_(cache_root_ + "/.src"),
         objects_path_(cache_root_ + "/.obj"),
         upper_limits_(upper_limits),
-        lower_limits_(upper_limits_, 60),
+        lower_limits_(upper_limits_, LIMITS_LOW_HI_PERCENTAGE),
         pending_(pending)
     {}
 
