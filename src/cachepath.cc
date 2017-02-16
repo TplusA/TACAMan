@@ -23,7 +23,7 @@
 #include <cstring>
 
 #include "cachepath.hh"
-#include "os.h"
+#include "os.hh"
 #include "messages.h"
 
 std::string ArtCache::Path::dirstr() const
@@ -172,6 +172,8 @@ ArtCache::Path &ArtCache::Path::append_part(const char *s, bool as_file)
 
 bool ArtCache::Path::exists() const
 {
+    OS::SuppressErrorsGuard suppress_errors;
+
     switch(os_path_get_type(path_.c_str()))
     {
       case OS_PATH_TYPE_DIRECTORY:

@@ -23,6 +23,7 @@
 #include <sstream>
 
 #include "converterqueue.hh"
+#include "os.hh"
 #include "messages.h"
 
 Converter::Job::State Converter::Job::get_state() const
@@ -119,26 +120,31 @@ generate_script(const std::string &script_name,
 {
     log_assert(cdata != nullptr);
 
-    switch(os_path_get_type(script_name.c_str()))
     {
-      case OS_PATH_TYPE_IO_ERROR:
-        /* OK, file does not exist */
-        break;
+        OS::SuppressErrorsGuard suppress_errors;
 
-      case OS_PATH_TYPE_FILE:
-        BUG("Found orphaned script \"%s\", replacing", script_name.c_str());
-        break;
+        switch(os_path_get_type(script_name.c_str()))
+        {
+          case OS_PATH_TYPE_IO_ERROR:
+            /* OK, file does not exist */
+            break;
 
-      case OS_PATH_TYPE_DIRECTORY:
-      case OS_PATH_TYPE_OTHER:
-        BUG("Found non-file path \"%s\", cannot continue", script_name.c_str());
-        result = Converter::Job::Result::INTERNAL_ERROR;
-        return Converter::Job::State::DONE_ERROR;
+          case OS_PATH_TYPE_FILE:
+            BUG("Found orphaned script \"%s\", replacing", script_name.c_str());
+            break;
+
+          case OS_PATH_TYPE_DIRECTORY:
+          case OS_PATH_TYPE_OTHER:
+            BUG("Found non-file path \"%s\", cannot continue", script_name.c_str());
+            result = Converter::Job::Result::INTERNAL_ERROR;
+            return Converter::Job::State::DONE_ERROR;
+        }
     }
 
     result = Converter::Job::Result::OK;
 
-    msg_info("Generate job script \"%s\"", script_name.c_str());
+    msg_vinfo(MESSAGE_LEVEL_DIAG,
+              "Generate job script \"%s\"", script_name.c_str());
 
     std::ostringstream os;
     append_snippet(os, cdata->output_directory_);
@@ -154,7 +160,7 @@ generate_script(const std::string &script_name,
         return Converter::Job::State::DONE_ERROR;
     }
 
-    os_system_formatted("chmod +x %s", script_name.c_str());
+    os_system_formatted(false, "chmod +x %s", script_name.c_str());
 
     return dldata != nullptr
         ? Converter::Job::State::DOWNLOADING_AND_CONVERTING
@@ -252,14 +258,20 @@ Converter::Job::Result Converter::Job::clean_up(const std::string &workdir)
 
 static Converter::Job::Result create_empty_workdir(const std::string &workdir)
 {
+    OS::SuppressErrorsGuard suppress_errors;
+
     if(os_mkdir_hierarchy(workdir.c_str(), true))
         return Converter::Job::Result::OK;
     else if(errno != EEXIST)
         return Converter::Job::Result::IO_ERROR;
 
+    suppress_errors.toggle();
+
     auto result(Converter::Job::clean_up(workdir));
     if(result != Converter::Job::Result::OK)
         return result;
+
+    suppress_errors.toggle();
 
     if(os_mkdir_hierarchy(workdir.c_str(), true))
         return Converter::Job::Result::OK;
@@ -271,6 +283,8 @@ static Converter::Job::Result create_empty_workdir(const std::string &workdir)
 
 static Converter::Job::Result ensure_workdir(const std::string &workdir)
 {
+    OS::SuppressErrorsGuard suppress_errors;
+
     errno = 0;
 
     if(os_mkdir_hierarchy(workdir.c_str(), true) || errno == EEXIST)
@@ -339,7 +353,8 @@ Converter::Job::Result Converter::Job::do_execute(std::unique_lock<std::mutex> &
     lock.unlock();
 
     /* this is where most of the time will be spent */
-    result = handle_script_exit_code(os_system(script_name_.c_str()));
+    result = handle_script_exit_code(os_system(msg_is_verbose(MESSAGE_LEVEL_DIAG),
+                                               script_name_.c_str()));
 
     /* lock again for data juggling below */
     lock.lock();
@@ -382,6 +397,10 @@ void Converter::Job::finalize(ArtCache::PendingIface &pending)
     os_file_delete(std::string(convert_data_.output_directory_ + '/' + temp_file_name_).c_str());;
 
     /* clean up the safe way in case nice way didn't serve us well */
+    OS::SuppressErrorsGuard suppress_errors;
     if(!os_rmdir(convert_data_.output_directory_.c_str(), true))
+    {
+        suppress_errors.toggle();
         clean_up(convert_data_.output_directory_);
+    }
 }

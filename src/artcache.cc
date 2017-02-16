@@ -25,7 +25,7 @@
 #include <dirent.h>
 
 #include "artcache.hh"
-#include "os.h"
+#include "os.hh"
 #include "messages.h"
 
 static const std::string REFFILE_NAME(".ref");
@@ -421,7 +421,7 @@ bool ArtCache::Manager::init()
 
 void ArtCache::Manager::reset()
 {
-    os_system_formatted("rm -r '%s'", cache_root_.c_str());
+    os_system_formatted(false, "rm -r '%s'", cache_root_.c_str());
     statistics_.reset();
     timestamp_for_hot_path_.reset();
 }
@@ -469,6 +469,8 @@ static inline ArtCache::Path mk_source_reffile_name(const ArtCache::Path &root,
 
 static ArtCache::AddKeyResult mk_stream_key_entry(const ArtCache::Path &stream_key_dirname)
 {
+    OS::SuppressErrorsGuard suppress_errors;
+
     if(os_mkdir_hierarchy(stream_key_dirname.str().c_str(), true))
         return ArtCache::AddKeyResult::INSERTED;
 
@@ -545,12 +547,16 @@ static ArtCache::AddSourceResult mk_source_entry(const ArtCache::Path &sources_r
 
     bool created;
 
-    if(os_mkdir_hierarchy(temp.str().c_str(), true))
-        created = true;
-    else if(errno == EEXIST)
-        created = false;
-    else
-        return ArtCache::AddSourceResult::IO_ERROR;
+    {
+        OS::SuppressErrorsGuard suppress_errors;
+
+        if(os_mkdir_hierarchy(temp.str().c_str(), true))
+            created = true;
+        else if(errno == EEXIST)
+            created = false;
+        else
+            return ArtCache::AddSourceResult::IO_ERROR;
+    }
 
     if(created)
         temp.append_part(REFFILE_NAME, true);
@@ -749,9 +755,13 @@ static ArtCache::AddObjectResult mk_object_entry(ArtCache::Path &object_name,
     if(object_name.exists())
         return ArtCache::AddObjectResult::EXISTS;
 
-    if(!os_mkdir_hierarchy(object_name.dirstr().c_str(), true) &&
-       errno != EEXIST)
-        return ArtCache::AddObjectResult::IO_ERROR;
+    {
+        OS::SuppressErrorsGuard suppress_errors;
+
+        if(!os_mkdir_hierarchy(object_name.dirstr().c_str(), true) &&
+           errno != EEXIST)
+            return ArtCache::AddObjectResult::IO_ERROR;
+    }
 
     if(os_file_rename(source_object_name.c_str(), object_name.str().c_str()))
         return ArtCache::AddObjectResult::INSERTED;
@@ -1558,7 +1568,7 @@ struct TraverseTraits<struct DecimateCacheEntriesData<DecimateType::STREAMS>>
         else
         {
             msg_vinfo(MESSAGE_LEVEL_DEBUG, "GC: remove stream key %s", p.c_str());
-            os_system_formatted("rm -r '%s'", p.c_str());
+            os_system_formatted(false, "rm -r '%s'", p.c_str());
 
             ++cd.deleted_.streams_;
             cd.statistics_.remove_stream(true);
@@ -1601,7 +1611,7 @@ struct TraverseTraits<struct DecimateCacheEntriesData<DecimateType::SOURCES>>
         else
         {
             msg_vinfo(MESSAGE_LEVEL_DEBUG, "GC: remove source %s", p.c_str());
-            os_system_formatted("rm -r '%s'", p.c_str());
+            os_system_formatted(false, "rm -r '%s'", p.c_str());
 
             ++cd.deleted_.sources_;
             cd.statistics_.remove_source(true);

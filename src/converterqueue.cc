@@ -26,6 +26,7 @@
 #include "dbus_handlers.hh"
 #include "dbus_iface_deep.h"
 #include "de_tahifi_artcache_errors.hh"
+#include "os.hh"
 #include "messages.h"
 
 static const std::string empty_string;
@@ -192,10 +193,14 @@ void Converter::Queue::add_to_cache_by_data(ArtCache::Manager &cache_manager,
 
     std::string workdir(temp_dir_ + '/' + source_hash_string);
 
-    if(!os_mkdir_hierarchy(workdir.c_str(), true))
-        result = (errno == EEXIST)
-            ? ArtCache::AddKeyResult::SOURCE_PENDING
-            : ArtCache::AddKeyResult::IO_ERROR;
+    {
+        OS::SuppressErrorsGuard suppress_errors;
+
+        if(!os_mkdir_hierarchy(workdir.c_str(), true))
+            result = (errno == EEXIST)
+                ? ArtCache::AddKeyResult::SOURCE_PENDING
+                : ArtCache::AddKeyResult::IO_ERROR;
+    }
 
     static const std::string temp_filename("original_raw");
 

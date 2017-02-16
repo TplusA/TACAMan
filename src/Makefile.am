@@ -30,7 +30,7 @@ tacaman_SOURCES = \
     md5.cc md5.hh \
     messages.h messages.c messages_glib.h messages_glib.c \
     dbus_iface.c dbus_iface.h dbus_iface_deep.h dbus_handlers.hh \
-    os.c os.h \
+    os.c os.h os.hh \
     ../dbus_interfaces/de_tahifi_artcache_errors.hh \
     ../dbus_interfaces/de_tahifi_artcache_monitor_errors.h \
     ../dbus_interfaces/de_tahifi_artcache_read_errors.h
