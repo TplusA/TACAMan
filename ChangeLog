@@ -1,3 +1,12 @@
+2017-02-16  Robert Tiemann  <r.tiemann@ta-hifi.de>
+
+	* Version 1.0 released.
+
+	* Features: Garbage collection is functional; timestamp overflows are
+	  handled.
+
+	* Misc: Several smaller fixes, decrease verbosity.
+
 2017-02-03  Robert Tiemann  <r.tiemann@ta-hifi.de>
 
 	* Version 0.2 released.
