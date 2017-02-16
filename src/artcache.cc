@@ -1124,6 +1124,40 @@ bool ArtCache::Manager::delete_object(const std::string &object_hash)
     return true;
 }
 
+static ArtCache::LookupResult log_lookup(const ArtCache::LookupResult ret,
+                                         const std::string &stream_key,
+                                         uint8_t priority,
+                                         const std::string &object_hash,
+                                         const std::string &format)
+{
+    static constexpr const char *names_[] =
+    {
+        "FOUND",
+        "KEY_UNKNOWN",
+        "PENDING",
+        "FORMAT_NOT_SUPPORTED",
+        "ORPHANED",
+        "IO_ERROR",
+    };
+
+    static_assert(sizeof(names_) / sizeof(names_[0]) == static_cast<size_t>(ArtCache::LookupResult::LAST_LOOKUP_RESULT) + 1U,
+                  "Mismatch between lookup result enum and result strings");
+
+    const char *result_string = static_cast<size_t>(ret) < sizeof(names_) / sizeof(names_[0])
+        ? names_[static_cast<size_t>(ret)]
+        : "***Invalid ArtCache::LookupResult code***";
+
+    if(object_hash.empty())
+        msg_info("Lookup key %s prio %u format %s -> %s",
+                 stream_key.c_str(), priority, format.c_str(), result_string);
+    else
+        msg_info("Lookup key %s prio %u format %s, client version %s -> %s",
+                 stream_key.c_str(), priority, format.c_str(),
+                 object_hash.c_str(), result_string);
+
+    return ret;
+}
+
 ArtCache::LookupResult
 ArtCache::Manager::lookup(const ArtCache::StreamPrioPair &stream_key,
                           const std::string &object_hash,
@@ -1135,8 +1169,10 @@ ArtCache::Manager::lookup(const ArtCache::StreamPrioPair &stream_key,
 
     std::lock_guard<std::mutex> lock(lock_);
 
-    return do_lookup(stream_key.stream_key_, stream_key.priority_,
-                     object_hash, format, obj);
+    return log_lookup(do_lookup(stream_key.stream_key_, stream_key.priority_,
+                                object_hash, format, obj),
+                      stream_key.stream_key_, stream_key.priority_,
+                      object_hash, format);
 }
 
 static int find_highest(const char *path, unsigned char dtype, void *user_data)
@@ -1197,9 +1233,11 @@ ArtCache::Manager::lookup(const std::string &stream_key,
     const uint8_t prio =
         find_highest_priority(cache_root_, stream_key, result);
 
-    return (prio > 0)
+    const auto ret = (prio > 0)
         ? do_lookup(stream_key, prio, object_hash, format, obj)
         : result;
+
+    return log_lookup(ret, stream_key, prio, object_hash, format);
 }
 
 void ArtCache::Manager::mark_hot_path(const std::string &stream_key,
@@ -1234,16 +1272,6 @@ ArtCache::Manager::do_lookup(const std::string &stream_key, uint8_t priority,
                              const std::string &format,
                              std::unique_ptr<ArtCache::Object> &obj) const
 {
-    if(object_hash.empty())
-        msg_vinfo(MESSAGE_LEVEL_DEBUG,
-                  "Lookup key %s prio %u format %s (unconditional)",
-                  stream_key.c_str(), priority, format.c_str());
-    else
-        msg_vinfo(MESSAGE_LEVEL_DEBUG,
-                  "Lookup key %s prio %u format %s, client version %s",
-                  stream_key.c_str(), priority, format.c_str(),
-                  object_hash.c_str());
-
     obj = nullptr;
 
     const Path p(mk_stream_key_dirname(cache_root_, stream_key, priority));

@@ -80,6 +80,8 @@ enum class LookupResult
     FORMAT_NOT_SUPPORTED,
     ORPHANED,
     IO_ERROR,
+
+    LAST_LOOKUP_RESULT = IO_ERROR,
 };
 
 enum class GCResult
