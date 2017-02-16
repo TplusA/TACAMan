@@ -1403,13 +1403,16 @@ static bool operator>(const struct timespec &a, const struct timespec &b)
 
 static void compute_threshold(const CollectMinMaxTimestampsData &cd,
                               struct timespec &threshold,
-                              std::chrono::microseconds &green_zone,
+                              bool removed_anything_in_previous_round,
                               bool check_expected_count, size_t expected_count,
                               const char *what)
 {
-    static constexpr uint8_t BIAS = 5;
-    static_assert(ArtCache::Manager::LIMITS_LOW_HI_PERCENTAGE > 10 * BIAS,
+    static constexpr uint8_t BIAS = 10;
+    static constexpr uint8_t APPROACHING_PERCENTAGE = 20;
+    static_assert(ArtCache::Manager::LIMITS_LOW_HI_PERCENTAGE + BIAS <= 100,
                   "Bias too large for threshold computation");
+    static_assert(ArtCache::Manager::LIMITS_LOW_HI_PERCENTAGE >= APPROACHING_PERCENTAGE,
+                  "Approaching percentage too big");
 
     const auto delta = delta_us(cd.min_, cd.max_);
 
@@ -1424,15 +1427,22 @@ static void compute_threshold(const CollectMinMaxTimestampsData &cd,
      * have been derived from.
      *
      * Such a threshold should bring us back to just below our limits after
-     * decimating files below that threshold, but we substract a little,
-     * arbitrary bias from the percentage value to increase the likelihood that
-     * this will happen after the first iteration.
+     * decimating files below that threshold, but we add a little, arbitrary
+     * bias to the percentage value to increase the likelihood that this will
+     * happen after the first iteration.
+     *
+     * On successive iterations, a much less aggressive estimate is used in
+     * case any objects have been removed in the preceeding round. This is
+     * because we generally assume that the first round does the job pretty
+     * well already, and should either succeed or come close to the lower
+     * limits. Thus, only a few more objects should be removed to finish the
+     * job on next round.
      */
+    const uint8_t percentage(removed_anything_in_previous_round
+                             ? APPROACHING_PERCENTAGE
+                             : (ArtCache::Manager::LIMITS_LOW_HI_PERCENTAGE + BIAS));
     const std::chrono::microseconds estimate(
-            (std::chrono::duration_cast<std::chrono::microseconds>(delta) *
-             (ArtCache::Manager::LIMITS_LOW_HI_PERCENTAGE - BIAS)) / 100);
-
-    green_zone = std::chrono::duration_cast<std::chrono::microseconds>(delta - estimate);
+            (std::chrono::duration_cast<std::chrono::microseconds>(delta) * percentage) / 100);
 
     threshold = cd.min_;
     add_to_timespec(threshold, estimate);
@@ -1707,10 +1717,6 @@ ArtCache::GCResult ArtCache::Manager::do_gc()
     struct timespec sources_threshold;
     struct timespec objects_threshold;
 
-    std::chrono::microseconds streams_green_zone;
-    std::chrono::microseconds sources_green_zone;
-    std::chrono::microseconds objects_green_zone;
-
     static constexpr int MAX_FAIL_ROUNDS = 2;
     int fail_rounds_left = MAX_FAIL_ROUNDS;
     bool removed_anything = false;
@@ -1749,11 +1755,11 @@ ArtCache::GCResult ArtCache::Manager::do_gc()
         lock.unlock();
         std::this_thread::yield();
 
-        compute_threshold(streams_minmax, streams_threshold, streams_green_zone,
+        compute_threshold(streams_minmax, streams_threshold, removed_anything,
                           streams_changed, streams_expected, "streams");
-        compute_threshold(sources_minmax, sources_threshold, sources_green_zone,
+        compute_threshold(sources_minmax, sources_threshold, removed_anything,
                           sources_changed, sources_expected, "sources");
-        compute_threshold(objects_minmax, objects_threshold, objects_green_zone,
+        compute_threshold(objects_minmax, objects_threshold, removed_anything,
                           objects_changed, objects_expected, "objects");
 
         need_new_statistics = streams_changed || sources_changed || objects_changed;
