@@ -103,4 +103,3 @@ debug_dbus.stamp: $(DBUS_IFACES)/de_tahifi_debug.xml
 	$(GDBUS_CODEGEN) --generate-c-code=debug_dbus --c-namespace tdbus_debug --interface-prefix de.tahifi.Debug. $<
 	$(DBUS_IFACES)/extract_documentation.py -i $< -o de_tahifi_debug.md -H de_tahifi_debug.h -c tdbus_debug -s de.tahifi.Debug. -n "Introspection"
 	touch $@
-
