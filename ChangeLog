@@ -1,3 +1,9 @@
+2018-03-06  Robert Tiemann  <r.tiemann@ta-hifi.de>
+
+	* Version 1.2 released.
+
+	* Misc: Do not error out if markdown is not installed.
+
 2017-03-30  Robert Tiemann  <r.tiemann@ta-hifi.de>
 
 	* Version 1.1 released.
@@ -46,4 +52,4 @@
 	  integration into our distribution.
 
 
-Copyright 2017 T+A elektroakustik GmbH & Co. KG
+Copyright 2017, 2018 T+A elektroakustik GmbH & Co. KG
