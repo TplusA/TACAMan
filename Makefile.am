@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2017  T+A elektroakustik GmbH & Co. KG
+# Copyright (C) 2017, 2018  T+A elektroakustik GmbH & Co. KG
 #
 # This file is part of TACAMan.
 #
@@ -20,7 +20,9 @@ SUBDIRS = . src tests
 
 ACLOCAL_AMFLAGS = -I m4
 
+if WITH_MARKDOWN
 html_DATA = README.html
+endif
 
 EXTRA_DIST = README.md
 
