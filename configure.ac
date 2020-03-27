@@ -1,4 +1,4 @@
-dnl Copyright (C) 2017, 2018  T+A elektroakustik GmbH & Co. KG
+dnl Copyright (C) 2017, 2018, 2020  T+A elektroakustik GmbH & Co. KG
 dnl
 dnl This file is part of TACAMan.
 dnl
@@ -53,15 +53,7 @@ AC_CHECK_PROGS([GDBUS_CODEGEN], [gdbus-codegen])
 AC_CHECK_PROGS([XSLTPROC], [xsltproc])
 AC_CHECK_PROGS([VALGRIND], [valgrind])
 AC_CHECK_PROGS([AUTOREVISION], [autorevision])
-
-m4_ifdef([AC_CHECK_CUTTER],
-[
-AC_CHECK_CUTTER
-AC_CHECK_CPPCUTTER
-AC_CHECK_GCUTTER
 AC_CHECK_COVERAGE
-],
-[ac_cv_use_cutter=no])
 
 # Checks for libraries.
 PKG_CHECK_MODULES([TACAMAN_DEPENDENCIES], [glib-2.0 >= 2.36 gmodule-2.0 gio-2.0 gio-unix-2.0 >= 2.36 gthread-2.0])
@@ -69,33 +61,21 @@ PKG_CHECK_MODULES([TACAMAN_DEPENDENCIES], [glib-2.0 >= 2.36 gmodule-2.0 gio-2.0 
 # Checks for header files.
 AC_CHECK_HEADERS([stdlib.h])
 
-m4_ifdef([AC_CHECK_CUTTER],
-[
-save_CPPFLAGS="$CPPFLAGS"
-CPPFLAGS="$pkg_cv_CUTTER_CFLAGS"
-AC_CHECK_HEADER([cutter.h], [], [ac_cv_use_cutter=no])
-CPPFLAGS="$save_CPPFLAGS"
-
 AC_LANG_PUSH([C++])
-save_CPPFLAGS="$CPPFLAGS"
-CPPFLAGS="$pkg_cv_CPPCUTTER_CFLAGS"
-AC_CHECK_HEADER([cppcutter.h], [], [ac_cv_use_cutter=no])
-CPPFLAGS="$save_CPPFLAGS"
+AC_CHECK_HEADER([doctest.h])
 AC_LANG_POP([C++])
-])
 
 # Checks for typedefs, structures, and compiler characteristics.
+AX_CXX_COMPILE_STDCXX_14([noext])
 AC_CHECK_HEADER_STDBOOL
 AC_TYPE_SIZE_T
 
 # Checks for library functions.
 
-AM_CONDITIONAL([WITH_CUTTER], [test "x$ac_cv_use_cutter" = "xyes"])
+AM_CONDITIONAL([WITH_DOCTEST], [test "x$ac_cv_header_doctest_h" = "xyes"])
 AM_CONDITIONAL([WITH_VALGRIND], [test "x$enable_valgrind" = "xyes"])
 AM_CONDITIONAL([WITH_MARKDOWN], [test "x$ac_cv_prog_MARKDOWN" != "x"])
 
 AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile Doxyfile])
 AC_CONFIG_FILES([versioninfo.cache])
-AC_CONFIG_FILES([tests/run_test.sh], [chmod +x tests/run_test.sh])
-AC_CONFIG_FILES([tests/valgrind.sh], [chmod +x tests/valgrind.sh])
 AC_OUTPUT

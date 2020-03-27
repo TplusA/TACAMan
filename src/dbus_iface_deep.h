@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -20,7 +20,7 @@
 #define DBUS_IFACE_DEEP_H
 
 #include "dbus_iface.h"
-#include "artcache_dbus.h"
+#include "de_tahifi_artcache.h"
 
 #ifdef __cplusplus
 extern "C" {

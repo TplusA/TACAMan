@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2017  T+A elektroakustik GmbH & Co. KG
+# Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
 #
 # This file is part of TACAMan.
 #
@@ -30,7 +30,7 @@ tacaman_SOURCES = \
     md5.cc md5.hh \
     messages.h messages.c messages_glib.h messages_glib.c \
     dbus_iface.c dbus_iface.h dbus_iface_deep.h dbus_handlers.hh \
-    os.c os.h os.hh \
+    backtrace.c backtrace.h os.c os.h os.hh \
     ../dbus_interfaces/de_tahifi_artcache_errors.hh \
     ../dbus_interfaces/de_tahifi_artcache_monitor_errors.h \
     ../dbus_interfaces/de_tahifi_artcache_read_errors.h
@@ -68,38 +68,39 @@ libdbus_handlers_la_SOURCES = \
 libdbus_handlers_la_CFLAGS = $(AM_CFLAGS)
 libdbus_handlers_la_CXXFLAGS = $(AM_CXXFLAGS)
 
-nodist_libdebug_dbus_la_SOURCES = debug_dbus.c debug_dbus.h
+nodist_libdebug_dbus_la_SOURCES = de_tahifi_debug.c de_tahifi_debug.h
 libdebug_dbus_la_CFLAGS = $(CRELAXEDWARNINGS)
 
-nodist_libartcache_dbus_la_SOURCES = artcache_dbus.c artcache_dbus.h
+nodist_libartcache_dbus_la_SOURCES = de_tahifi_artcache.c de_tahifi_artcache.h
 libartcache_dbus_la_CFLAGS = $(CRELAXEDWARNINGS)
 
 BUILT_SOURCES = \
     $(nodist_libartcache_dbus_la_SOURCES) \
-    de_tahifi_artcache.h \
-    de_tahifi_artcache.md \
-    artcache_dbus.stamp \
+    de_tahifi_artcache-doc.h \
+    de_tahifi_artcache-doc.md \
+    de_tahifi_artcache.stamp \
     $(nodist_libdebug_dbus_la_SOURCES) \
-    de_tahifi_debug.h \
-    de_tahifi_debug.md \
-    debug_dbus.stamp
+    de_tahifi_debug-doc.h \
+    de_tahifi_debug-doc.md \
+    de_tahifi_debug.stamp
 
 CLEANFILES = $(BUILT_SOURCES)
 
-de_tahifi_artcache.h: artcache_dbus.stamp
-de_tahifi_artcache.md: artcache_dbus.stamp
-artcache_dbus.c: artcache_dbus.stamp
-artcache_dbus.h: artcache_dbus.stamp
-artcache_dbus.stamp: $(DBUS_IFACES)/de_tahifi_artcache.xml
-	$(GDBUS_CODEGEN) --generate-c-code=artcache_dbus --c-namespace tdbus --interface-prefix de.tahifi. $<
-	$(DBUS_IFACES)/extract_documentation.py -i $< -o de_tahifi_artcache.md -H de_tahifi_artcache.h -c tdbus -s de.tahifi. -n 'Cover Art Cache'
+de_tahifi_artcache-doc.h: de_tahifi_artcache.stamp
+de_tahifi_artcache-doc.md: de_tahifi_artcache.stamp
+de_tahifi_artcache.c: de_tahifi_artcache.stamp
+de_tahifi_artcache.h: de_tahifi_artcache.stamp
+de_tahifi_artcache.stamp: $(DBUS_IFACES)/de_tahifi_artcache.xml
+	$(GDBUS_CODEGEN) --generate-c-code=de_tahifi_artcache --c-namespace tdbus --interface-prefix de.tahifi. $<
+	$(DBUS_IFACES)/extract_documentation.py -i $< -o de_tahifi_artcache-doc.md -H de_tahifi_artcache-doc.h -c tdbus -s de.tahifi. -n "Cover Art Cache"
 	touch $@
 
-de_tahifi_debug.h: debug_dbus.stamp
-de_tahifi_debug.md: debug_dbus.stamp
-debug_dbus.c: debug_dbus.stamp
-debug_dbus.h: debug_dbus.stamp
-debug_dbus.stamp: $(DBUS_IFACES)/de_tahifi_debug.xml
-	$(GDBUS_CODEGEN) --generate-c-code=debug_dbus --c-namespace tdbus_debug --interface-prefix de.tahifi.Debug. $<
-	$(DBUS_IFACES)/extract_documentation.py -i $< -o de_tahifi_debug.md -H de_tahifi_debug.h -c tdbus_debug -s de.tahifi.Debug. -n "Introspection"
+
+de_tahifi_debug-doc.h: de_tahifi_debug.stamp
+de_tahifi_debug-doc.md: de_tahifi_debug.stamp
+de_tahifi_debug.c: de_tahifi_debug.stamp
+de_tahifi_debug.h: de_tahifi_debug.stamp
+de_tahifi_debug.stamp: $(DBUS_IFACES)/de_tahifi_debug.xml
+	$(GDBUS_CODEGEN) --generate-c-code=de_tahifi_debug --c-namespace tdbus_debug --interface-prefix de.tahifi.Debug. $<
+	$(DBUS_IFACES)/extract_documentation.py -i $< -o de_tahifi_debug-doc.md -H de_tahifi_debug-doc.h -c tdbus_debug -s de.tahifi.Debug. -n "Introspection"
 	touch $@

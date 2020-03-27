@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -21,7 +21,7 @@
 
 #include <gio/gio.h>
 
-#include "artcache_dbus.h"
+#include "de_tahifi_artcache.h"
 
 /*!
  * \addtogroup dbus_handlers DBus handlers for signals

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -20,11 +20,12 @@
 #include <config.h>
 #endif /* HAVE_CONFIG_H */
 
-#include <cppcutter.h>
+#include <doctest.h>
 
 #include "cachepath.hh"
 
 #include "mock_messages.hh"
+#include "mock_backtrace.hh"
 #include "mock_os.hh"
 
 /*!
@@ -35,41 +36,46 @@
  */
 /*!@{*/
 
-namespace cache_path_tests
+TEST_SUITE_BEGIN("Cache Paths");
+
+class Fixture
 {
+  protected:
+    std::unique_ptr<MockMessages::Mock> mock_messages;
+    std::unique_ptr<MockBacktrace::Mock> mock_backtrace;
+    std::unique_ptr<MockOS::Mock> mock_os;
 
-static MockMessages *mock_messages;
-static MockOs *mock_os;
+  public:
+    explicit Fixture():
+        mock_messages(std::make_unique<MockMessages::Mock>()),
+        mock_backtrace(std::make_unique<MockBacktrace::Mock>()),
+        mock_os(std::make_unique<MockOS::Mock>())
+    {
+        MockMessages::singleton = mock_messages.get();
+        MockBacktrace::singleton = mock_backtrace.get();
+        MockOS::singleton = mock_os.get();
+    }
 
-void cut_setup(void)
-{
-    mock_os = new MockOs;
-    cppcut_assert_not_null(mock_os);
-    mock_os->init();
-    mock_os_singleton = mock_os;
+    ~Fixture()
+    {
+        try
+        {
+            mock_messages->done();
+            mock_backtrace->done();
+            mock_os->done();
+        }
+        catch(...)
+        {
+            /* no throwing from dtors */
+        }
 
-    mock_messages = new MockMessages;
-    cppcut_assert_not_null(mock_messages);
-    mock_messages->init();
-    mock_messages_singleton = mock_messages;
-}
+        MockMessages::singleton = nullptr;
+        MockBacktrace::singleton = nullptr;
+        MockOS::singleton = nullptr;
+    }
+};
 
-void cut_teardown(void)
-{
-    mock_os->check();
-    mock_messages->check();
-
-    mock_os_singleton = nullptr;
-    mock_messages_singleton = nullptr;
-
-    delete mock_os;
-    delete mock_messages;
-
-    mock_os = nullptr;
-    mock_messages = nullptr;
-}
-
-void test_ctors()
+TEST_CASE_FIXTURE(Fixture, "Path constructors")
 {
     static const char root_as_cstring[] = "/root/from/c/string";
     static const std::string root_as_cxxstring("/root/from/cxx/string");
@@ -82,139 +88,153 @@ void test_ctors()
     static const std::string expected_c_root("/root/from/c/string/");
     static const std::string expected_cxx_root("/root/from/cxx/string/");
 
-    cppcut_assert_equal(expected_c_root, a.str());
-    cppcut_assert_equal(expected_c_root, a.dirstr());
-    cppcut_assert_equal(expected_c_root, acopy.str());
-    cppcut_assert_equal(expected_c_root, acopy.dirstr());
+    CHECK(a.str() == expected_c_root);
+    CHECK(a.dirstr() == expected_c_root);
+    CHECK(acopy.str() == expected_c_root);
+    CHECK(acopy.dirstr() == expected_c_root);
 
-    cppcut_assert_equal(expected_cxx_root, b.str());
-    cppcut_assert_equal(expected_cxx_root, b.dirstr());
-    cppcut_assert_equal(expected_cxx_root, bcopy.str());
-    cppcut_assert_equal(expected_cxx_root, bcopy.dirstr());
+    CHECK(b.str() == expected_cxx_root);
+    CHECK(b.dirstr() == expected_cxx_root);
+    CHECK(bcopy.str() == expected_cxx_root);
+    CHECK(bcopy.dirstr() == expected_cxx_root);
 }
 
-void test_ctor_with_empty_string_refers_to_root()
+TEST_CASE_FIXTURE(Fixture, "Constructor with empty string refers to root path")
 {
     const ArtCache::Path p("");
-    cppcut_assert_equal("/", p.str().c_str());
-    cppcut_assert_equal("/", p.dirstr().c_str());
+    CHECK(p.str() == "/");
+    CHECK(p.dirstr() == "/");
 }
 
-void test_append_hash_as_directory()
+TEST_CASE_FIXTURE(Fixture, "Append hash to path as directory")
 {
     ArtCache::Path p("/cache");
 
     p.append_hash("64ef367018099de4d4183ffa3bc0848a", false);
-    cppcut_assert_equal("/cache/64/ef367018099de4d4183ffa3bc0848a/", p.str().c_str());
+    CHECK(p.str() == "/cache/64/ef367018099de4d4183ffa3bc0848a/");
 }
 
-void test_append_hash_as_file()
+TEST_CASE_FIXTURE(Fixture, "Append hash to path as file")
 {
     ArtCache::Path p("/cache");
 
     p.append_hash("64ef367018099de4d4183ffa3bc0848a", true);
-    cppcut_assert_equal("/cache/64/ef367018099de4d4183ffa3bc0848a", p.str().c_str());
+    CHECK(p.str() == "/cache/64/ef367018099de4d4183ffa3bc0848a");
 }
 
-void test_append_empty_hash_dir_is_a_bug()
+TEST_CASE_FIXTURE(Fixture, "Trying to append empty hash as directory is a bug")
 {
     ArtCache::Path p("/cache");
 
-    mock_messages->expect_msg_error(0, LOG_CRIT,
-                                    "BUG: Cannot append empty hash to path");
+    expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
+                                   "BUG: Cannot append empty hash to path", false);
+    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_hash("", false);
-    cppcut_assert_equal("/cache/", p.str().c_str());
+    CHECK(p.str() == "/cache/");
 }
 
-void test_append_empty_hash_file_is_a_bug()
+TEST_CASE_FIXTURE(Fixture, "Trying to append empty hash as file is a bug")
 {
     ArtCache::Path p("/cache");
 
-    mock_messages->expect_msg_error(0, LOG_CRIT,
-                                    "BUG: Cannot append empty hash to path");
+    expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
+                                   "BUG: Cannot append empty hash to path", false);
+    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_hash("", true);
-    cppcut_assert_equal("/cache/", p.str().c_str());
+    CHECK(p.str() == "/cache/");
 }
 
-void test_append_short_hash_dir_is_a_bug()
+TEST_CASE_FIXTURE(Fixture, "Trying to append short hash as directory is a bug")
 {
     ArtCache::Path p("/cache");
 
-    mock_messages->expect_msg_error(0, LOG_CRIT, "BUG: Hash too short");
+    expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
+                                   "BUG: Hash too short", false);
+    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_hash("a", false);
-    cppcut_assert_equal("/cache/", p.str().c_str());
+    CHECK(p.str() == "/cache/");
 
-    mock_messages->expect_msg_error(0, LOG_CRIT, "BUG: Hash too short");
+    expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
+                                   "BUG: Hash too short", false);
+    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_hash("ab", false);
-    cppcut_assert_equal("/cache/", p.str().c_str());
+    CHECK(p.str() == "/cache/");
 
     p.append_hash("abc", false);
-    cppcut_assert_equal("/cache/ab/c/", p.str().c_str());
+    CHECK(p.str() == "/cache/ab/c/");
 }
 
-void test_append_short_hash_file_is_a_bug()
+TEST_CASE_FIXTURE(Fixture, "Trying to append short hash as file is a bug")
 {
     ArtCache::Path p("/cache");
 
-    mock_messages->expect_msg_error(0, LOG_CRIT, "BUG: Hash too short");
+    expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
+                                   "BUG: Hash too short", false);
+    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_hash("a", true);
-    cppcut_assert_equal("/cache/", p.str().c_str());
+    CHECK(p.str() == "/cache/");
 
-    mock_messages->expect_msg_error(0, LOG_CRIT, "BUG: Hash too short");
+    expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
+                                   "BUG: Hash too short", false);
+    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_hash("ab", true);
-    cppcut_assert_equal("/cache/", p.str().c_str());
+    CHECK(p.str() == "/cache/");
 
     p.append_hash("abc", true);
-    cppcut_assert_equal("/cache/ab/c", p.str().c_str());
+    CHECK(p.str() == "/cache/ab/c");
 }
 
-void test_append_empty_dir_part_is_a_bug()
+TEST_CASE_FIXTURE(Fixture, "Trying to append empty directory part to path is a bug")
 {
     ArtCache::Path p("/cache");
 
-    mock_messages->expect_msg_error(0, LOG_CRIT,
-                                    "BUG: Cannot append empty part to path");
+    expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
+                                   "BUG: Cannot append empty part to path", false);
+    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_part("", false);
-    cppcut_assert_equal("/cache/", p.str().c_str());
+    CHECK(p.str() == "/cache/");
 }
 
-void test_append_empty_file_part_is_a_bug()
+TEST_CASE_FIXTURE(Fixture, "Trying to append empty file part to path is a bug")
 {
     ArtCache::Path p("/cache");
 
-    mock_messages->expect_msg_error(0, LOG_CRIT,
-                                    "BUG: Cannot append empty part to path");
+    expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
+                                   "BUG: Cannot append empty part to path", false);
+    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_part("", true);
-    cppcut_assert_equal("/cache/", p.str().c_str());
+    CHECK(p.str() == "/cache/");
 }
 
-void test_append_multiple_components()
+TEST_CASE_FIXTURE(Fixture, "Append multiple components to path")
 {
     ArtCache::Path p("/cache");
 
     p.append_hash("64ef367018099de4d4183ffa3bc0848a")
      .append_part("050")
      .append_part("some_file", true);
-    cppcut_assert_equal("/cache/64/ef367018099de4d4183ffa3bc0848a/050/some_file", p.str().c_str());
-    cppcut_assert_equal("/cache/64/ef367018099de4d4183ffa3bc0848a/050/", p.dirstr().c_str());
+    CHECK(p.str() == "/cache/64/ef367018099de4d4183ffa3bc0848a/050/some_file");
+    CHECK(p.dirstr() == "/cache/64/ef367018099de4d4183ffa3bc0848a/050/");
 }
 
-void test_append_to_file_is_a_bug()
+TEST_CASE_FIXTURE(Fixture, "Trying to append to a path to file is a bug")
 {
     ArtCache::Path p("/cache");
 
-    mock_messages->expect_msg_error(0, LOG_CRIT,
-                                    "BUG: Cannot append part to file name");
-    mock_messages->expect_msg_error(0, LOG_CRIT,
-                                    "BUG: Cannot append part to file name");
+    expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
+                                   "BUG: Cannot append part to file name", false);
+    expect<MockBacktrace::Log>(mock_backtrace);
+    expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
+                                   "BUG: Cannot append part to file name", false);
+    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_hash("64ef367018099de4d4183ffa3bc0848a", true)
      .append_part("050")
      .append_part("some_file", true);
-    cppcut_assert_equal("/cache/64/ef367018099de4d4183ffa3bc0848a", p.str().c_str());
-    cppcut_assert_equal("/cache/64/", p.dirstr().c_str());
+    CHECK(p.str() == "/cache/64/ef367018099de4d4183ffa3bc0848a");
+    CHECK(p.dirstr() == "/cache/64/");
 }
 
-void test_intermediate_paths_may_be_used_to_construct_more_paths()
+TEST_CASE_FIXTURE(Fixture, "Intermediate paths may be used to construct more paths")
 {
     ArtCache::Path root("/root");
     root.append_part("sub").append_hash("123456");
@@ -228,90 +248,90 @@ void test_intermediate_paths_may_be_used_to_construct_more_paths()
     ArtCache::Path c(root);
     c.append_part("another_sub");
 
-    cppcut_assert_equal("/root/sub/12/3456/", root.str().c_str());
-    cppcut_assert_equal("/root/sub/12/3456/", root.dirstr().c_str());
-    cppcut_assert_equal("/root/sub/12/3456/ab/cdef/file", a.str().c_str());
-    cppcut_assert_equal("/root/sub/12/3456/ab/cdef/", a.dirstr().c_str());
-    cppcut_assert_equal("/root/sub/12/3456/hello", b.str().c_str());
-    cppcut_assert_equal("/root/sub/12/3456/", b.dirstr().c_str());
-    cppcut_assert_equal("/root/sub/12/3456/another_sub/", c.str().c_str());
-    cppcut_assert_equal("/root/sub/12/3456/another_sub/", c.dirstr().c_str());
+    CHECK(root.str() == "/root/sub/12/3456/");
+    CHECK(root.dirstr() == "/root/sub/12/3456/");
+    CHECK(a.str() == "/root/sub/12/3456/ab/cdef/file");
+    CHECK(a.dirstr() == "/root/sub/12/3456/ab/cdef/");
+    CHECK(b.str() == "/root/sub/12/3456/hello");
+    CHECK(b.dirstr() == "/root/sub/12/3456/");
+    CHECK(c.str() == "/root/sub/12/3456/another_sub/");
+    CHECK(c.dirstr() == "/root/sub/12/3456/another_sub/");
 }
 
-void test_check_directory_exists()
+TEST_CASE_FIXTURE(Fixture, "Can check if directory exists")
 {
     ArtCache::Path path("/dir");
 
-    mock_os->expect_os_path_get_type(OS_PATH_TYPE_DIRECTORY, "/dir/");
-    cut_assert_true(path.exists());
+    expect<MockOS::PathGetType>(mock_os, OS_PATH_TYPE_DIRECTORY, 0, "/dir/");
+    CHECK(path.exists());
 }
 
-void test_check_directory_but_is_file()
+TEST_CASE_FIXTURE(Fixture, "Check if directory exists for a file of the same name fails")
 {
     ArtCache::Path path("");
     path.append_part("dir");
 
-    mock_os->expect_os_path_get_type(OS_PATH_TYPE_FILE, "/dir/");
-    cut_assert_false(path.exists());
+    expect<MockOS::PathGetType>(mock_os, OS_PATH_TYPE_FILE, 0, "/dir/");
+    CHECK_FALSE(path.exists());
 }
 
-void test_check_directory_but_is_special()
+TEST_CASE_FIXTURE(Fixture, "Check if directory exists for a special file of the same name fails")
 {
     ArtCache::Path path("");
     path.append_part("dir");
 
-    mock_os->expect_os_path_get_type(OS_PATH_TYPE_OTHER, "/dir/");
-    mock_messages->expect_msg_error_formatted(0, LOG_CRIT,
-                                              "BUG: Unexpected type of path /dir/");
-    cut_assert_false(path.exists());
+    expect<MockOS::PathGetType>(mock_os, OS_PATH_TYPE_OTHER, 0, "/dir/");
+    expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT, "BUG: Unexpected type of path /dir/", false);
+    expect<MockBacktrace::Log>(mock_backtrace);
+    CHECK_FALSE(path.exists());
 }
 
-void test_check_directory_does_not_exist()
+TEST_CASE_FIXTURE(Fixture, "Check for non-existent directory fails")
 {
     ArtCache::Path path("/dir");
 
-    mock_os->expect_os_path_get_type(OS_PATH_TYPE_IO_ERROR, "/dir/");
-    cut_assert_false(path.exists());
+    expect<MockOS::PathGetType>(mock_os, OS_PATH_TYPE_IO_ERROR, 0, "/dir/");
+    CHECK_FALSE(path.exists());
 }
 
-void test_check_file_exists()
-{
-    ArtCache::Path path("/dir");
-    path.append_part("file", true);
-
-    mock_os->expect_os_path_get_type(OS_PATH_TYPE_FILE, "/dir/file");
-    cut_assert_true(path.exists());
-}
-
-void test_check_file_but_is_directory()
+TEST_CASE_FIXTURE(Fixture, "Check if file exists")
 {
     ArtCache::Path path("/dir");
     path.append_part("file", true);
 
-    mock_os->expect_os_path_get_type(OS_PATH_TYPE_DIRECTORY, "/dir/file");
-    cut_assert_false(path.exists());
+    expect<MockOS::PathGetType>(mock_os, OS_PATH_TYPE_FILE, 0, "/dir/file");
+    CHECK(path.exists());
 }
 
-void test_check_file_but_is_special()
+TEST_CASE_FIXTURE(Fixture, "Check if file for a directory of the same name fails")
 {
     ArtCache::Path path("/dir");
     path.append_part("file", true);
 
-    mock_os->expect_os_path_get_type(OS_PATH_TYPE_OTHER, "/dir/file");
-    mock_messages->expect_msg_error_formatted(0, LOG_CRIT,
-                                              "BUG: Unexpected type of path /dir/file");
-    cut_assert_false(path.exists());
+    expect<MockOS::PathGetType>(mock_os, OS_PATH_TYPE_DIRECTORY, 0, "/dir/file");
+    CHECK_FALSE(path.exists());
 }
 
-void test_check_file_does_not_exist()
+TEST_CASE_FIXTURE(Fixture, "Check if file for a special file of the same name fails")
 {
     ArtCache::Path path("/dir");
     path.append_part("file", true);
 
-    mock_os->expect_os_path_get_type(OS_PATH_TYPE_IO_ERROR, "/dir/file");
-    cut_assert_false(path.exists());
+    expect<MockOS::PathGetType>(mock_os, OS_PATH_TYPE_OTHER, 0, "/dir/file");
+    expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT, "BUG: Unexpected type of path /dir/file", false);
+    expect<MockBacktrace::Log>(mock_backtrace);
+    CHECK_FALSE(path.exists());
 }
 
+TEST_CASE_FIXTURE(Fixture, "Check for non-existent file fails")
+{
+    ArtCache::Path path("/dir");
+    path.append_part("file", true);
+
+    expect<MockOS::PathGetType>(mock_os, OS_PATH_TYPE_IO_ERROR, 0, "/dir/file");
+    CHECK_FALSE(path.exists());
 }
+
+TEST_SUITE_END();
 
 /*!@}*/

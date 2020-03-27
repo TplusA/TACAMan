@@ -1,1 +1,1 @@
-../strbo_common/tests/mock_os.cc
+../strbo_common/tests_new/mock_os.cc

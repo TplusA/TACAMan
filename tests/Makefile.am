@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2017  T+A elektroakustik GmbH & Co. KG
+# Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
 #
 # This file is part of TACAMan.
 #
@@ -16,55 +16,52 @@
 # along with TACAMan.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-if WITH_CUTTER
-TESTS = run_test.sh
+if WITH_DOCTEST
+check_PROGRAMS = test_cachepath
+
+TESTS = run_tests.sh
 
 if WITH_VALGRIND
+AM_TESTS_ENVIRONMENT = VALGRIND="$(VALGRIND)"
 TESTS += valgrind.sh
 endif
 
-AM_TESTS_ENVIRONMENT = CUTTER="$(CUTTER)" XSLTPROC="$(XSLTPROC)" VALGRIND="$(VALGRIND)"
+EXTRA_DIST = run_tests.sh valgrind.sh
+CLEANFILES = *.junit.xml *.valgrind.xml
 
-AM_LDFLAGS = -module -rpath $(libdir) -avoid-version -no-undefined
-
-AM_CPPFLAGS = $(CPPCUTTER_CFLAGS)
+AM_CPPFLAGS = -DDOCTEST_CONFIG_TREAT_CHAR_STAR_AS_STRING
 AM_CPPFLAGS += -I$(top_srcdir)/src -I$(top_builddir)/src
 AM_CPPFLAGS += -I$(top_srcdir)/dbus_interfaces
-
 AM_CFLAGS = $(CWARNINGS)
-
 AM_CXXFLAGS = $(CXXWARNINGS)
 
-LIBS += $(CPPCUTTER_LIBS)
+noinst_LTLIBRARIES = libtestrunner.la
 
-check_LTLIBRARIES = \
-    test_dbus_handlers.la \
-    test_cachepath.la
+libtestrunner_la_SOURCES = testrunner.cc
 
-test_dbus_handlers_la_SOURCES = \
-    test_dbus_handlers.cc mock_expectation.hh \
-    mock_messages.hh mock_messages.cc
-test_dbus_handlers_la_LIBADD = \
-    $(top_builddir)/src/libdbus_handlers.la
-test_dbus_handlers_la_CFLAGS = $(TACAMAN_DEPENDENCIES_CFLAGS) $(AM_CFLAGS)
-test_dbus_handlers_la_CXXFLAGS = $(TACAMAN_DEPENDENCIES_CFLAGS) $(AM_CXXFLAGS)
-
-test_cachepath_la_SOURCES = \
-    test_cachepath.cc mock_expectation.hh \
+test_cachepath_SOURCES = \
+    test_cachepath.cc \
+    mock_os.hh mock_os.cc \
     mock_messages.hh mock_messages.cc \
-    mock_os.hh mock_os.cc
-test_cachepath_la_LIBADD = $(top_builddir)/src/libcachepath.la
-test_cachepath_la_CFLAGS = $(AM_CFLAGS)
-test_cachepath_la_CXXFLAGS = $(AM_CXXFLAGS)
+    mock_backtrace.hh mock_backtrace.cc \
+    mock_expectation.hh
+test_cachepath_LDADD = \
+    libtestrunner.la \
+    $(top_builddir)/src/libcachepath.la
+test_cachepath_CPPFLAGS = $(AM_CPPFLAGS)
+test_cachepath_CXXFLAGS = $(AM_CXXFLAGS)
 
-CLEANFILES = test_report.xml test_report_junit.xml valgrind.xml
+doctest: $(check_PROGRAMS)
+	for p in $(check_PROGRAMS); do \
+	    if ./$$p $(DOCTEST_EXTRA_OPTIONS); then :; \
+	    else \
+	        echo "*****"; \
+	        echo "***** Running $$p again in gdb due to failures"; \
+	        echo "*****"; \
+	        gdb -ex run --args ./$$p $(DOCTEST_EXTRA_OPTIONS); \
+	    fi; \
+	done
 
-EXTRA_DIST = cutter2junit.xslt
-EXTRA_DIST += cutter-1_2_4.supp
-
-check-local: check-TESTS
-	@if $(GREP) -w cutter $(TEST_LOGS); then \
-	    echo "Unit tests failed (check log)"; \
-	    exit 1; \
-	fi
+doctest-valgrind: $(check_PROGRAMS)
+	for p in $(check_PROGRAMS); do $(VALGRIND) --leak-check=full --show-reachable=yes --error-limit=no ./$$p $(DOCTEST_EXTRA_OPTIONS); done
 endif
