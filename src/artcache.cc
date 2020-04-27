@@ -1305,7 +1305,7 @@ ArtCache::Manager::do_lookup(const std::string &stream_key, uint8_t priority,
                       "Object has not changed for key %s prio %u format %s",
                       stream_key.c_str(), priority, format.c_str());
 
-            obj.reset(new ArtCache::Object(priority, object_hash));
+            obj = std::make_unique<ArtCache::Object>(priority, object_hash);
 
             if(obj != nullptr)
             {
@@ -1339,11 +1339,10 @@ ArtCache::Manager::do_lookup(const std::string &stream_key, uint8_t priority,
     if(os_map_file_to_memory(&mapped, src.str().c_str()) < 0)
         return LookupResult::IO_ERROR;
 
-    obj.reset(new ArtCache::Object(priority,
-                                   find_data.found_.substr(format.length() + 1,
-                                                           std::string::npos),
-                                   static_cast<const uint8_t *>(mapped.ptr),
-                                   mapped.length));
+    obj = std::make_unique<ArtCache::Object>(
+            priority,
+            find_data.found_.substr(format.length() + 1, std::string::npos),
+            static_cast<const uint8_t *>(mapped.ptr), mapped.length);
 
     os_unmap_file(&mapped);
 
