@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -388,11 +388,11 @@ class Manager
     void delete_key(const StreamPrioPair &stream_key);
 
     LookupResult lookup(const StreamPrioPair &stream_key,
-                        const std::string &source_hash,
+                        const std::string &object_hash,
                         const std::string &format,
                         std::unique_ptr<Object> &obj) const;
     LookupResult lookup(const std::string &stream_key,
-                        const std::string &source_hash,
+                        const std::string &object_hash,
                         const std::string &format,
                         std::unique_ptr<Object> &obj) const;
 
@@ -434,7 +434,7 @@ class Manager
     bool delete_object(const std::string &object_hash);
 
     LookupResult do_lookup(const std::string &stream_key, uint8_t priority,
-                           const std::string &source_hash,
+                           const std::string &object_hash,
                            const std::string &format,
                            std::unique_ptr<Object> &obj) const;
 

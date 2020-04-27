@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -55,7 +55,7 @@ void binary_to_hexstring(std::string &dest, const uint8_t *data, size_t len);
 void hexstring_to_binary(std::uint8_t *dest, const std::string &str);
 
 #ifdef GLIB_CHECK_VERSION
-GVariant *hexstring_to_variant(const std::string &hexstring);
+GVariant *hexstring_to_variant(const std::string &str);
 #endif /* GLIB_CHECK_VERSION */
 
 }

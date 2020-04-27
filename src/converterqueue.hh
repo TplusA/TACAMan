@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -245,6 +245,8 @@ class Queue: public ArtCache::PendingIface
     bool is_source_pending__unlocked(const std::string &source_hash, bool exclude_current) const override;
     bool add_key_to_pending_source(const ArtCache::StreamPrioPair &stream_key,
                                    const std::string &source_hash) override;
+
+    // cppcheck-suppress functionStatic
     void notify_pending_key_processed(const ArtCache::StreamPrioPair &stream_key,
                                       const std::string &source_hash,
                                       ArtCache::AddKeyResult result,

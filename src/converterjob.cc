@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -202,6 +202,7 @@ move_files_to_cache(ArtCache::Manager &cache_manager, Converter::ConvertData &cd
     std::vector<std::string> output_files;
 
     for(const auto &outfmt : cdata.output_formats_)
+        // cppcheck-suppress useStlAlgorithm
         output_files.emplace_back(cdata.output_directory_ + "/" + outfmt.filename_);
 
     auto result(Converter::Job::Result::INTERNAL_ERROR);

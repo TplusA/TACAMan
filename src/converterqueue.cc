@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -21,6 +21,7 @@
 #endif /* HAVE_CONFIG_H */
 
 #include <glib.h>
+#include <algorithm>
 
 #include "converterqueue.hh"
 #include "dbus_handlers.hh"
@@ -119,7 +120,7 @@ void Converter::Queue::add_to_cache_by_uri(ArtCache::Manager &cache_manager,
     log_assert(uri != nullptr);
     log_assert(uri[0] != '\0');
 
-    std::string source_hash_string(compute_uri_hash(uri));
+    const auto source_hash_string(compute_uri_hash(uri));
 
     std::lock_guard<std::mutex> lock(lock_);
     auto addguard(pdata_.earmark_add_source(source_hash_string));
@@ -144,11 +145,11 @@ void Converter::Queue::add_to_cache_by_uri(ArtCache::Manager &cache_manager,
 
     static const std::string temp_filename("original_downloaded");
 
-    if(queue(std::move(std::shared_ptr<Job>(
-            new Job(std::move(std::string(temp_dir_ + '/' + source_hash_string)),
-                    temp_filename,
-                    uri, std::move(source_hash_string),
-                    std::move(sp), cache_manager)))))
+    auto workdir(temp_dir_ + '/' + source_hash_string);
+
+    if(queue(std::move(std::make_shared<Job>(std::move(workdir), temp_filename,
+                                             uri, std::string(source_hash_string),
+                                             std::move(sp), cache_manager))))
     {
         tdbus_art_cache_monitor_emit_associated(dbus_get_artcache_monitor_iface(),
                                                 DBus::hexstring_to_variant(sp_copy.stream_key_),
@@ -168,7 +169,7 @@ void Converter::Queue::add_to_cache_by_data(ArtCache::Manager &cache_manager,
     log_assert(data != nullptr);
     log_assert(length > 0);
 
-    std::string source_hash_string(compute_data_hash(data, length));
+    const auto source_hash_string(compute_data_hash(data, length));
 
     std::lock_guard<std::mutex> lock(lock_);
     auto addguard(pdata_.earmark_add_source(source_hash_string));
@@ -191,7 +192,7 @@ void Converter::Queue::add_to_cache_by_data(ArtCache::Manager &cache_manager,
             static_cast<const ArtCache::StreamPrioPair &>(sp).stream_key_,
             sp.priority_);
 
-    std::string workdir(temp_dir_ + '/' + source_hash_string);
+    auto workdir(temp_dir_ + '/' + source_hash_string);
 
     {
         OS::SuppressErrorsGuard suppress_errors;
@@ -213,10 +214,9 @@ void Converter::Queue::add_to_cache_by_data(ArtCache::Manager &cache_manager,
     }
 
     if(result == ArtCache::AddKeyResult::SOURCE_UNKNOWN &&
-       queue(std::move(std::shared_ptr<Job>(
-            new Job(std::move(workdir), temp_filename,
-                    std::move(source_hash_string),
-                    std::move(sp), cache_manager)))))
+       queue(std::move(std::make_shared<Job>(std::move(workdir), temp_filename,
+                                             std::string(source_hash_string),
+                                             std::move(sp), cache_manager))))
     {
         tdbus_art_cache_monitor_emit_associated(dbus_get_artcache_monitor_iface(),
                                                 DBus::hexstring_to_variant(sp_copy.stream_key_),
@@ -247,13 +247,8 @@ bool Converter::Queue::is_source_pending__unlocked(const std::string &source_has
             return true;
     }
 
-    for(const auto &job : jobs_)
-    {
-        if(job->source_hash_ == source_hash)
-            return true;
-    }
-
-    return false;
+    return std::any_of(jobs_.begin(), jobs_.end(),
+                       [&source_hash] (const auto &j) { return j->source_hash_ == source_hash; });
 }
 
 bool Converter::Queue::add_key_to_pending_source(const ArtCache::StreamPrioPair &stream_key,
@@ -265,19 +260,16 @@ bool Converter::Queue::add_key_to_pending_source(const ArtCache::StreamPrioPair 
         return true;
     }
 
-    for(auto &job : jobs_)
-    {
-        if(job->source_hash_ == source_hash)
-        {
-            job->add_pending_key(stream_key);
-            return true;
-        }
-    }
+    const auto &it(std::find_if(jobs_.begin(), jobs_.end(),
+                                [&source_hash] (const auto &j) { return j->source_hash_ == source_hash; }));
 
-    return false;
+    if(it == jobs_.end())
+        return false;
+
+    (*it)->add_pending_key(stream_key);
+    return true;
 }
 
-// cppcheck-suppress functionStatic
 void Converter::Queue::notify_pending_key_processed(const ArtCache::StreamPrioPair &stream_key,
                                                     const std::string &source_hash,
                                                     ArtCache::AddKeyResult result,

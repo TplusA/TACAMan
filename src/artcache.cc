@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -257,10 +257,9 @@ struct TraverseTraits<struct CollectTimestampsData>
 template <typename T, typename Traits = TraverseTraits<T>>
 static int traverse_sub(const char *path, unsigned char dtype, void *user_data)
 {
-    auto &cd = *static_cast<T *>(user_data);
-
     if(ArtCache::is_valid_hash(path))
     {
+        auto &cd = *static_cast<T *>(user_data);
         const int ret(Traits::traverse_found_hashdir(cd, path, dtype));
 
         if(ret != 0)
@@ -299,7 +298,7 @@ static bool count_cached_hashes(std::string path, size_t &count)
         msg_error(errno, LOG_ALERT,
                   "Failed reading cache below \"%s\"", path.c_str());
         count = 0;
-        return -1;
+        return false;
     }
 
     count = cd.count_;
@@ -307,26 +306,26 @@ static bool count_cached_hashes(std::string path, size_t &count)
     return true;
 }
 
-ArtCache::Object::Object(uint8_t objpriority, const std::string &objhash,
-                         const uint8_t *objdata, size_t objlength):
-    priority_(objpriority),
-    hash_(objhash)
+ArtCache::Object::Object(uint8_t priority, const std::string &hash,
+                         const uint8_t *objdata, size_t length):
+    priority_(priority),
+    hash_(hash)
 {
     log_assert(objdata != nullptr);
-    log_assert(objlength > 0);
+    log_assert(length > 0);
 
-    std::copy(objdata, objdata + objlength, std::back_inserter(data_));
+    std::copy(objdata, objdata + length, std::back_inserter(data_));
 }
 
-ArtCache::Object::Object(uint8_t objpriority, std::string &&objhash,
-                         const uint8_t *objdata, size_t objlength):
-    priority_(objpriority),
-    hash_(std::move(objhash))
+ArtCache::Object::Object(uint8_t priority, std::string &&hash,
+                         const uint8_t *objdata, size_t length):
+    priority_(priority),
+    hash_(std::move(hash))
 {
     log_assert(objdata != nullptr);
-    log_assert(objlength > 0);
+    log_assert(length > 0);
 
-    std::copy(objdata, objdata + objlength, std::back_inserter(data_));
+    std::copy(objdata, objdata + length, std::back_inserter(data_));
 }
 
 void ArtCache::Statistics::dump(const char *what) const
@@ -1512,6 +1511,12 @@ struct DeletedCounts
     size_t streams_;
     size_t sources_;
     size_t objects_;
+
+    explicit DeletedCounts():
+        streams_(0),
+        sources_(0),
+        objects_(0)
+    {}
 };
 
 enum class DecimateType
@@ -1804,7 +1809,7 @@ ArtCache::GCResult ArtCache::Manager::do_gc()
         need_new_statistics = streams_changed || sources_changed || objects_changed;
 
         msg_info("GC: Removing objects");
-        struct DeletedCounts deleted_counts{0};
+        DeletedCounts deleted_counts;
 
         /* keep this order for most effective decimation */
         decimate<DecimateType::STREAMS>(streams_minmax, streams_threshold,
