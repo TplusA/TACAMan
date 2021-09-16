@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2020  T+A elektroakustik GmbH & Co. KG
+# Copyright (C) 2020, 2021  T+A elektroakustik GmbH & Co. KG
 #
 # This file is part of TACAMan.
 #
@@ -65,7 +65,8 @@ cachepath_lib = static_library('cachepath', 'cachepath.cc', dependencies: config
 
 dbus_handlers_lib = static_library('dbus_handlers',
     ['dbus_handlers.cc', 'messages_dbus.c'],
-    dependencies: [dbus_deps, glib_deps, config_h]
+    include_directories: dbus_iface_defs_includes,
+    dependencies: [glib_deps, config_h]
 )
 
 executable(
@@ -76,7 +77,11 @@ executable(
         'messages.c', 'messages_glib.c', 'dbus_iface.c', 'backtrace.c', 'os.c',
         version_info,
     ],
+    include_directories: dbus_iface_defs_includes,
     dependencies: [dbus_deps, glib_deps, config_h],
-    link_with: [cachepath_lib, dbus_handlers_lib],
+    link_with: [
+        cachepath_lib,
+        dbus_handlers_lib,
+    ],
     install: true
 )
