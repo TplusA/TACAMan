@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020, 2021  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -213,7 +213,7 @@ class Timestamp
     Timestamp &operator=(const Timestamp &) = delete;
 
     explicit Timestamp():
-        timestamps_{0},
+        timestamps_{},
         overflown_(false)
     {}
 

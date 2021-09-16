@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020, 2021  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -774,10 +774,20 @@ static ArtCache::AddObjectResult mk_object_entry(ArtCache::Path &object_name,
         : ArtCache::AddObjectResult::IO_ERROR;
 }
 
-struct FindFormatLinkData
+class FindFormatLinkData
 {
+  public:
     const std::string &format_name_;
     std::string found_;
+
+    FindFormatLinkData(const FindFormatLinkData &) = delete;
+    FindFormatLinkData(FindFormatLinkData &&) = default;
+    FindFormatLinkData &operator=(const FindFormatLinkData &) = delete;
+    FindFormatLinkData &operator=(FindFormatLinkData &&) = default;
+
+    explicit FindFormatLinkData(const std::string &format_name):
+        format_name_(format_name)
+    {}
 };
 
 static int find_link_for_format(const char *path, unsigned char dtype, void *user_data)
@@ -870,7 +880,7 @@ move_objects_and_update_source(const std::vector<std::string> &import_objects,
         }
 
         const std::string format_name(&*(plain_name - 1));
-        struct FindFormatLinkData find_data { format_name };
+        FindFormatLinkData find_data(format_name);
         ArtCache::Path link_path(source_path);
         link_path.append_part(find_data.format_name_ + ':' + object_hash_string, true);
 

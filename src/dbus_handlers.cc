@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020, 2021  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -68,25 +68,26 @@ void DBus::binary_to_hexstring(std::string &dest,
     }
 }
 
-void DBus::hexstring_to_binary(std::uint8_t *dest, const std::string &str)
+void DBus::hexstring_to_binary(std::vector<uint8_t> &dest,
+                               const std::string &str)
 {
-    log_assert(dest != nullptr);
-
     const size_t len = str.size() / 2;
+    dest.reserve(len);
 
     for(size_t i = 0; i < len; ++i)
-        dest[i] = char_to_nibble(str[2 * i + 0]) << 4 |
-                  char_to_nibble(str[2 * i + 1]);
+        dest.push_back(char_to_nibble(str[2 * i + 0]) << 4 |
+                       char_to_nibble(str[2 * i + 1]));
 }
 
 GVariant *DBus::hexstring_to_variant(const std::string &str)
 {
     if(str.size() >= 2)
     {
-        uint8_t buffer[str.size() / 2];
+        std::vector<uint8_t> buffer;
         hexstring_to_binary(buffer, str);
         return g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE,
-                                         buffer, sizeof(buffer), sizeof(buffer[0]));
+                                         buffer.data(), buffer.size(),
+                                         sizeof(buffer[0]));
     }
     else
     {
