@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020, 2021  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -28,7 +28,6 @@
 #include "cachepath.hh"
 
 #include "mock_messages.hh"
-#include "mock_backtrace.hh"
 #include "mock_os.hh"
 
 /*!
@@ -45,17 +44,14 @@ class Fixture
 {
   protected:
     std::unique_ptr<MockMessages::Mock> mock_messages;
-    std::unique_ptr<MockBacktrace::Mock> mock_backtrace;
     std::unique_ptr<MockOS::Mock> mock_os;
 
   public:
     explicit Fixture():
         mock_messages(std::make_unique<MockMessages::Mock>()),
-        mock_backtrace(std::make_unique<MockBacktrace::Mock>()),
         mock_os(std::make_unique<MockOS::Mock>())
     {
         MockMessages::singleton = mock_messages.get();
-        MockBacktrace::singleton = mock_backtrace.get();
         MockOS::singleton = mock_os.get();
     }
 
@@ -64,7 +60,6 @@ class Fixture
         try
         {
             mock_messages->done();
-            mock_backtrace->done();
             mock_os->done();
         }
         catch(...)
@@ -73,7 +68,6 @@ class Fixture
         }
 
         MockMessages::singleton = nullptr;
-        MockBacktrace::singleton = nullptr;
         MockOS::singleton = nullptr;
     }
 };
@@ -131,7 +125,6 @@ TEST_CASE_FIXTURE(Fixture, "Trying to append empty hash as directory is a bug")
 
     expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
                                    "BUG: Cannot append empty hash to path", false);
-    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_hash("", false);
     CHECK(p.str() == "/cache/");
 }
@@ -142,7 +135,6 @@ TEST_CASE_FIXTURE(Fixture, "Trying to append empty hash as file is a bug")
 
     expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
                                    "BUG: Cannot append empty hash to path", false);
-    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_hash("", true);
     CHECK(p.str() == "/cache/");
 }
@@ -153,13 +145,11 @@ TEST_CASE_FIXTURE(Fixture, "Trying to append short hash as directory is a bug")
 
     expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
                                    "BUG: Hash too short", false);
-    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_hash("a", false);
     CHECK(p.str() == "/cache/");
 
     expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
                                    "BUG: Hash too short", false);
-    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_hash("ab", false);
     CHECK(p.str() == "/cache/");
 
@@ -173,13 +163,11 @@ TEST_CASE_FIXTURE(Fixture, "Trying to append short hash as file is a bug")
 
     expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
                                    "BUG: Hash too short", false);
-    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_hash("a", true);
     CHECK(p.str() == "/cache/");
 
     expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
                                    "BUG: Hash too short", false);
-    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_hash("ab", true);
     CHECK(p.str() == "/cache/");
 
@@ -193,7 +181,6 @@ TEST_CASE_FIXTURE(Fixture, "Trying to append empty directory part to path is a b
 
     expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
                                    "BUG: Cannot append empty part to path", false);
-    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_part("", false);
     CHECK(p.str() == "/cache/");
 }
@@ -204,7 +191,6 @@ TEST_CASE_FIXTURE(Fixture, "Trying to append empty file part to path is a bug")
 
     expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
                                    "BUG: Cannot append empty part to path", false);
-    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_part("", true);
     CHECK(p.str() == "/cache/");
 }
@@ -226,10 +212,8 @@ TEST_CASE_FIXTURE(Fixture, "Trying to append to a path to file is a bug")
 
     expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
                                    "BUG: Cannot append part to file name", false);
-    expect<MockBacktrace::Log>(mock_backtrace);
     expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT,
                                    "BUG: Cannot append part to file name", false);
-    expect<MockBacktrace::Log>(mock_backtrace);
     p.append_hash("64ef367018099de4d4183ffa3bc0848a", true)
      .append_part("050")
      .append_part("some_file", true);
@@ -285,7 +269,6 @@ TEST_CASE_FIXTURE(Fixture, "Check if directory exists for a special file of the 
 
     expect<MockOS::PathGetType>(mock_os, OS_PATH_TYPE_OTHER, 0, "/dir/");
     expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT, "BUG: Unexpected type of path /dir/", false);
-    expect<MockBacktrace::Log>(mock_backtrace);
     CHECK_FALSE(path.exists());
 }
 
@@ -322,7 +305,6 @@ TEST_CASE_FIXTURE(Fixture, "Check if file for a special file of the same name fa
 
     expect<MockOS::PathGetType>(mock_os, OS_PATH_TYPE_OTHER, 0, "/dir/file");
     expect<MockMessages::MsgError>(mock_messages, 0, LOG_CRIT, "BUG: Unexpected type of path /dir/file", false);
-    expect<MockBacktrace::Log>(mock_backtrace);
     CHECK_FALSE(path.exists());
 }
 
