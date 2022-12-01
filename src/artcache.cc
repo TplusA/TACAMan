@@ -1224,6 +1224,8 @@ static uint8_t find_highest_priority(const std::string &cache_root,
 
     uint8_t prio = 0;
 
+    OS::SuppressErrorsGuard suppress_errors;
+
     if(os_foreach_in_path(p.str().c_str(), find_highest, &prio) < 0)
         result_on_fail = ArtCache::LookupResult::IO_ERROR;
     else
