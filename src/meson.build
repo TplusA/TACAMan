@@ -36,19 +36,24 @@ dbus_iface_data = [
     ['de_tahifi_debug',    'de.tahifi.Debug.', 'tdbus_debug', 'Debug Levels'],
 ]
 
+dbus_headers = []
 dbus_deps = []
 dbus_docs = []
 
 foreach d : dbus_iface_data
+    codegen = gnome.gdbus_codegen(d[0],
+                                  sources: dbus_iface_dir / d[0] + '.xml',
+                                  interface_prefix: d[1],
+                                  namespace: d[2])
+
+    dbus_headers += codegen[1]
+
     dbus_deps += declare_dependency(
         link_with: static_library(
-            d[0].split('_')[-1] + '_dbus',
-            gnome.gdbus_codegen(d[0],
-                                sources: dbus_iface_dir / d[0] + '.xml',
-                                interface_prefix: d[1],
-                                namespace: d[2]),
+            d[0].split('_')[-1] + '_dbus', codegen,
             dependencies: [glib_deps, config_h],
-            c_args: relaxed_dbus_warnings),
+            c_args: relaxed_dbus_warnings
+        ),
         include_directories: dbus_iface_defs_includes
     )
 
@@ -59,12 +64,14 @@ foreach d : dbus_iface_data
             extract_docs, '-i', '@INPUT@', '-o', '@OUTPUT0@', '-H', '@OUTPUT1@',
             '-c', d[2], '-s', d[1], '-n', d[3]
         ])
+
+    codegen = []
 endforeach
 
 cachepath_lib = static_library('cachepath', 'cachepath.cc', dependencies: config_h)
 
 dbus_handlers_lib = static_library('dbus_handlers',
-    ['dbus_handlers.cc', 'messages_dbus.c'],
+    ['dbus_handlers.cc', 'messages_dbus.c', dbus_headers],
     include_directories: dbus_iface_defs_includes,
     dependencies: [dbus_deps, glib_deps, config_h]
 )
@@ -75,7 +82,7 @@ executable(
         'tacaman.cc', 'artcache.cc', 'artcache_background.cc',
         'converterqueue.cc', 'converterjob.cc', 'formats.cc', 'md5.cc',
         'messages.c', 'messages_glib.c', 'dbus_iface.c', 'backtrace.c', 'os.c',
-        version_info,
+        dbus_headers, version_info,
     ],
     include_directories: dbus_iface_defs_includes,
     dependencies: [dbus_deps, glib_deps, config_h],
