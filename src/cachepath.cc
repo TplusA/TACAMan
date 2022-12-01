@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020, 2022  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -41,16 +41,16 @@ ArtCache::Path &ArtCache::Path::append_hash(const std::string &s, bool as_file)
 {
     if(is_file_)
     {
-        BUG("Cannot append hash to file name");
+        MSG_BUG("Cannot append hash to file name");
         return *this;
     }
 
     if(s.length() < 3)
     {
         if(s.empty())
-            BUG("Cannot append empty hash to path");
+            MSG_BUG("Cannot append empty hash to path");
         else
-            BUG("Hash \"%s\" too short", s.c_str());
+            MSG_BUG("Hash \"%s\" too short", s.c_str());
 
         return *this;
     }
@@ -76,23 +76,23 @@ ArtCache::Path &ArtCache::Path::append_hash(const std::string &s, bool as_file)
 
 ArtCache::Path &ArtCache::Path::append_hash(const char *s, bool as_file)
 {
-    log_assert(s != nullptr);
+    msg_log_assert(s != nullptr);
 
     if(is_file_)
     {
-        BUG("Cannot append hash to file name");
+        MSG_BUG("Cannot append hash to file name");
         return *this;
     }
 
     if(s[0] == '\0')
     {
-        BUG("Cannot append empty hash to path");
+        MSG_BUG("Cannot append empty hash to path");
         return *this;
     }
 
     if(s[1] == '\0' || s[2] == '\0')
     {
-        BUG("Hash too short");
+        MSG_BUG("Hash too short");
         return *this;
     }
 
@@ -121,13 +121,13 @@ ArtCache::Path &ArtCache::Path::append_part(const std::string &s, bool as_file)
 {
     if(is_file_)
     {
-        BUG("Cannot append part to file name");
+        MSG_BUG("Cannot append part to file name");
         return *this;
     }
 
     if(s.empty())
     {
-        BUG("Cannot append empty part to path");
+        MSG_BUG("Cannot append empty part to path");
         return *this;
     }
 
@@ -146,17 +146,17 @@ ArtCache::Path &ArtCache::Path::append_part(const std::string &s, bool as_file)
 
 ArtCache::Path &ArtCache::Path::append_part(const char *s, bool as_file)
 {
-    log_assert(s != nullptr);
+    msg_log_assert(s != nullptr);
 
     if(is_file_)
     {
-        BUG("Cannot append part to file name");
+        MSG_BUG("Cannot append part to file name");
         return *this;
     }
 
     if(s[0] == '\0')
     {
-        BUG("Cannot append empty part to path");
+        MSG_BUG("Cannot append empty part to path");
         return *this;
     }
 
@@ -192,7 +192,7 @@ bool ArtCache::Path::exists() const
         break;
     }
 
-    BUG("Unexpected type of path %s", path_.c_str());
+    MSG_BUG("Unexpected type of path %s", path_.c_str());
 
     return false;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020, 2022  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -118,10 +118,10 @@ void Converter::Queue::add_to_cache_by_uri(ArtCache::Manager &cache_manager,
                                            ArtCache::StreamPrioPair &&sp,
                                            const char *uri)
 {
-    log_assert(!sp.stream_key_.empty());
-    log_assert(sp.priority_ > 0);
-    log_assert(uri != nullptr);
-    log_assert(uri[0] != '\0');
+    msg_log_assert(!sp.stream_key_.empty());
+    msg_log_assert(sp.priority_ > 0);
+    msg_log_assert(uri != nullptr);
+    msg_log_assert(uri[0] != '\0');
 
     const auto source_hash_string(compute_uri_hash(uri));
 
@@ -167,10 +167,10 @@ void Converter::Queue::add_to_cache_by_data(ArtCache::Manager &cache_manager,
                                             ArtCache::StreamPrioPair &&sp,
                                             const uint8_t *data, size_t length)
 {
-    log_assert(!sp.stream_key_.empty());
-    log_assert(sp.priority_ > 0);
-    log_assert(data != nullptr);
-    log_assert(length > 0);
+    msg_log_assert(!sp.stream_key_.empty());
+    msg_log_assert(sp.priority_ > 0);
+    msg_log_assert(data != nullptr);
+    msg_log_assert(length > 0);
 
     const auto source_hash_string(compute_data_hash(data, length));
 
@@ -343,10 +343,10 @@ void Converter::Queue::notify_pending_key_processed(const ArtCache::StreamPrioPa
 
 bool Converter::Queue::queue(std::shared_ptr<Converter::Job> &&job)
 {
-    log_assert(job != nullptr);
-    log_assert(job->get_state() == Job::State::DOWNLOAD_IDLE ||
-               job->get_state() == Job::State::CONVERT_IDLE);
-    log_assert(pdata_.adding_source_hash_ != nullptr);
+    msg_log_assert(job != nullptr);
+    msg_log_assert(job->get_state() == Job::State::DOWNLOAD_IDLE ||
+                   job->get_state() == Job::State::CONVERT_IDLE);
+    msg_log_assert(pdata_.adding_source_hash_ != nullptr);
 
     jobs_.emplace_back(std::move(job));
     job_available_.notify_one();

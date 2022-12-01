@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017, 2020, 2021  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020, 2021, 2022  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -184,7 +184,7 @@ struct TraverseTraits<struct CollectMinMaxTimestampsData>
         {
             if(dtype != DT_DIR)
             {
-                BUG("Path %s is not a directory", p.c_str());
+                MSG_BUG("Path %s is not a directory", p.c_str());
                 return 0;
             }
 
@@ -237,7 +237,7 @@ struct TraverseTraits<struct CollectTimestampsData>
         {
             if(dtype != DT_DIR)
             {
-                BUG("Path %s is not a directory", p.c_str());
+                MSG_BUG("Path %s is not a directory", p.c_str());
                 return 0;
             }
 
@@ -314,8 +314,8 @@ ArtCache::Object::Object(uint8_t priority, const std::string &hash,
     priority_(priority),
     hash_(hash)
 {
-    log_assert(objdata != nullptr);
-    log_assert(length > 0);
+    msg_log_assert(objdata != nullptr);
+    msg_log_assert(length > 0);
 
     std::copy(objdata, objdata + length, std::back_inserter(data_));
 }
@@ -325,8 +325,8 @@ ArtCache::Object::Object(uint8_t priority, std::string &&hash,
     priority_(priority),
     hash_(std::move(hash))
 {
-    log_assert(objdata != nullptr);
-    log_assert(length > 0);
+    msg_log_assert(objdata != nullptr);
+    msg_log_assert(length > 0);
 
     std::copy(objdata, objdata + length, std::back_inserter(data_));
 }
@@ -737,7 +737,7 @@ ArtCache::Manager::add_stream_key_for_source(const ArtCache::StreamPrioPair &str
       case AddKeyResult::REPLACED:
       case AddKeyResult::SOURCE_PENDING:
       case AddKeyResult::SOURCE_UNKNOWN:
-        BUG("%s(): unreachable", __func__);
+        MSG_BUG("%s(): unreachable", __func__);
         return AddKeyResult::IO_ERROR;
 
       case AddKeyResult::IO_ERROR:
@@ -875,7 +875,7 @@ move_objects_and_update_source(const std::vector<std::string> &import_objects,
         const auto plain_name(std::find(fname.rbegin(), fname.rend(), '/'));
         if(plain_name == fname.rend())
         {
-            BUG("Expected absolute path, got \"%s\"", fname.c_str());
+            MSG_BUG("Expected absolute path, got \"%s\"", fname.c_str());
             return ArtCache::UpdateSourceResult::INTERNAL_ERROR;
         }
 
@@ -927,7 +927,7 @@ link_pending_keys_to_source(std::vector<std::pair<ArtCache::StreamPrioPair, ArtC
 
     for(auto &key : pending_stream_keys)
     {
-        log_assert(key.second == ArtCache::AddKeyResult::SOURCE_UNKNOWN);
+        msg_log_assert(key.second == ArtCache::AddKeyResult::SOURCE_UNKNOWN);
 
         auto key_path(mk_stream_key_dirname(cache_root, key.first));
 
@@ -972,7 +972,7 @@ link_pending_keys_to_source(std::vector<std::pair<ArtCache::StreamPrioPair, ArtC
           case ArtCache::AddKeyResult::INSERTED:
           case ArtCache::AddKeyResult::SOURCE_PENDING:
           case ArtCache::AddKeyResult::SOURCE_UNKNOWN:
-            BUG("%s(): unreachable", __func__);
+            MSG_BUG("%s(): unreachable", __func__);
             return ArtCache::UpdateSourceResult::INTERNAL_ERROR;
         }
     }
@@ -987,7 +987,7 @@ ArtCache::Manager::update_source(const std::string &source_hash,
                                  std::vector<std::string> &&import_objects,
                                  std::vector<std::pair<StreamPrioPair, AddKeyResult>> &pending_stream_keys)
 {
-    log_assert(!source_hash.empty());
+    msg_log_assert(!source_hash.empty());
 
     std::lock_guard<std::mutex> lock(lock_);
 
@@ -1024,8 +1024,8 @@ void ArtCache::Manager::delete_key(const StreamPrioPair &stream_key)
 
     if(!p.exists())
     {
-        BUG("Cannot delete key %s[%u], does not exist",
-            stream_key.stream_key_.c_str(), stream_key.priority_);
+        MSG_BUG("Cannot delete key %s[%u], does not exist",
+                stream_key.stream_key_.c_str(), stream_key.priority_);
         return;
     }
 
@@ -1042,8 +1042,8 @@ void ArtCache::Manager::delete_key(const StreamPrioPair &stream_key)
 
     if(!os_rmdir(p.str().c_str(), true))
     {
-        BUG("Failed deleting key %s[%u]",
-            stream_key.stream_key_.c_str(), stream_key.priority_);
+        MSG_BUG("Failed deleting key %s[%u]",
+                stream_key.stream_key_.c_str(), stream_key.priority_);
         return;
     }
 
@@ -1060,7 +1060,7 @@ static bool must_keep_file(const ArtCache::Path &ref,
 
     if(refcount == 0)
     {
-        BUG("Cannot delete %s %s, does not exist", what, name.c_str());
+        MSG_BUG("Cannot delete %s %s, does not exist", what, name.c_str());
         return true;
     }
     else if(refcount < 2)
@@ -1103,7 +1103,7 @@ bool ArtCache::Manager::delete_source(const std::string &source_hash)
 
     if(!os_rmdir(srcdir.c_str(), true))
     {
-        BUG("Failed deleting source %s", source_hash.c_str());
+        MSG_BUG("Failed deleting source %s", source_hash.c_str());
         return false;
     }
 
@@ -1126,7 +1126,7 @@ bool ArtCache::Manager::delete_object(const std::string &object_hash)
 
     if(!os_rmdir(p.dirstr().c_str(), true))
     {
-        BUG("Failed deleting object %s", object_hash.c_str());
+        MSG_BUG("Failed deleting object %s", object_hash.c_str());
         return false;
     }
 
@@ -1177,8 +1177,8 @@ ArtCache::Manager::lookup(const ArtCache::StreamPrioPair &stream_key,
                           const std::string &format,
                           std::unique_ptr<Object> &obj) const
 {
-    log_assert(!stream_key.stream_key_.empty());
-    log_assert(stream_key.priority_ > 0);
+    msg_log_assert(!stream_key.stream_key_.empty());
+    msg_log_assert(stream_key.priority_ > 0);
 
     std::lock_guard<std::mutex> lock(lock_);
 
@@ -1238,7 +1238,7 @@ ArtCache::Manager::lookup(const std::string &stream_key,
                           const std::string &format,
                           std::unique_ptr<Object> &obj) const
 {
-    log_assert(!stream_key.empty());
+    msg_log_assert(!stream_key.empty());
 
     std::lock_guard<std::mutex> lock(lock_);
 
@@ -1505,8 +1505,8 @@ static void compute_threshold(const CollectMinMaxTimestampsData &cd,
               threshold.tv_sec, threshold.tv_nsec);
 
     if(check_expected_count && cd.count_ != expected_count)
-        BUG("GC: expected %zu %s, but found %zu",
-            expected_count, what, cd.count_);
+        MSG_BUG("GC: expected %zu %s, but found %zu",
+                expected_count, what, cd.count_);
 }
 
 static void collect_statistics(CollectMinMaxTimestampsData &cd,
@@ -1907,7 +1907,7 @@ struct TraverseTraits<struct ResetTimestampsData>
         {
             if(dtype != DT_DIR)
             {
-                BUG("Path %s is not a directory", p.c_str());
+                MSG_BUG("Path %s is not a directory", p.c_str());
                 return 0;
             }
 

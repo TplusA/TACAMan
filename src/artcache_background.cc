@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020, 2022  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -73,14 +73,14 @@ void ArtCache::BackgroundTask::sync()
 
 void ArtCache::BackgroundTask::start()
 {
-    log_assert(th_.get_id() == std::thread::id());
+    msg_log_assert(th_.get_id() == std::thread::id());
     th_ = std::thread(&BackgroundTask::task_main, this);
 }
 
 void ArtCache::BackgroundTask::shutdown(bool is_high_priority)
 {
-    log_assert(th_.get_id() != std::thread::id());
-    log_assert(th_.joinable());
+    msg_log_assert(th_.get_id() != std::thread::id());
+    msg_log_assert(th_.joinable());
 
     if(is_high_priority)
     {

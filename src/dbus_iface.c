@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020, 2022  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -192,10 +192,10 @@ int dbus_setup(GMainLoop *loop, bool connect_to_session_bus,
         return -1;
     }
 
-    log_assert(dbus_data.artcache_read_iface != NULL);
-    log_assert(dbus_data.artcache_write_iface != NULL);
-    log_assert(dbus_data.artcache_monitor_iface != NULL);
-    log_assert(dbus_data.debug_logging_iface != NULL);
+    msg_log_assert(dbus_data.artcache_read_iface != NULL);
+    msg_log_assert(dbus_data.artcache_write_iface != NULL);
+    msg_log_assert(dbus_data.artcache_monitor_iface != NULL);
+    msg_log_assert(dbus_data.debug_logging_iface != NULL);
 
     g_main_loop_ref(loop);
 

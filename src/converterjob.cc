@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017, 2020  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020, 2022  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -49,7 +49,7 @@ void Converter::Job::add_pending_key(const ArtCache::StreamPrioPair &sp)
 
       case State::DONE_OK:
       case State::DONE_ERROR:
-        BUG("Cannot add pending key in state %u", static_cast<unsigned int>(state_));
+        MSG_BUG("Cannot add pending key in state %u", static_cast<unsigned int>(state_));
         return;
     }
 
@@ -121,7 +121,7 @@ generate_script(const std::string &script_name,
                 const Converter::ConvertData *const cdata,
                 Converter::Job::Result &result)
 {
-    log_assert(cdata != nullptr);
+    msg_log_assert(cdata != nullptr);
 
     {
         OS::SuppressErrorsGuard suppress_errors;
@@ -133,12 +133,12 @@ generate_script(const std::string &script_name,
             break;
 
           case OS_PATH_TYPE_FILE:
-            BUG("Found orphaned script \"%s\", replacing", script_name.c_str());
+            MSG_BUG("Found orphaned script \"%s\", replacing", script_name.c_str());
             break;
 
           case OS_PATH_TYPE_DIRECTORY:
           case OS_PATH_TYPE_OTHER:
-            BUG("Found non-file path \"%s\", cannot continue", script_name.c_str());
+            MSG_BUG("Found non-file path \"%s\", cannot continue", script_name.c_str());
             result = Converter::Job::Result::INTERNAL_ERROR;
             return Converter::Job::State::DONE_ERROR;
         }
@@ -190,7 +190,7 @@ static Converter::Job::Result handle_script_exit_code(int exit_code)
         return Converter::Job::Result::CONVERSION_ERROR;
 
       default:
-        BUG("Unhandled script exit code %d", exit_code);
+        MSG_BUG("Unhandled script exit code %d", exit_code);
         break;
     }
 
@@ -346,7 +346,7 @@ Converter::Job::Result Converter::Job::do_execute(std::unique_lock<std::mutex> &
       case State::CONVERTING:
       case State::DONE_OK:
       case State::DONE_ERROR:
-        BUG("Prepare job in state %u", static_cast<unsigned int>(state_));
+        MSG_BUG("Prepare job in state %u", static_cast<unsigned int>(state_));
         break;
     }
 
@@ -380,7 +380,7 @@ Converter::Job::Result Converter::Job::do_execute(std::unique_lock<std::mutex> &
       case State::DOWNLOAD_IDLE:
       case State::CONVERT_IDLE:
       case State::DONE_OK:
-        BUG("State %u after script execution", static_cast<unsigned int>(state_));
+        MSG_BUG("State %u after script execution", static_cast<unsigned int>(state_));
         result = Result::INTERNAL_ERROR;
         break;
     }

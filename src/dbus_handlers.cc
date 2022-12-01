@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017, 2020, 2021  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020, 2021, 2022  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -56,8 +56,8 @@ static uint8_t char_to_nibble(const char &ch)
 void DBus::binary_to_hexstring(std::string &dest,
                                const uint8_t *data, size_t len)
 {
-    log_assert(data != nullptr);
-    log_assert(len > 0);
+    msg_log_assert(data != nullptr);
+    msg_log_assert(len > 0);
 
     dest.reserve(len * 2);
 
@@ -201,7 +201,7 @@ gboolean dbusmethod_cache_get_scaled_image(tdbusArtCacheRead *object,
     /* parameters seem to be OK, convert BLOBs to strings and attempt to lookup
      * the requested image */
     auto *data = static_cast<DBus::SignalData *>(user_data);
-    log_assert(data != nullptr);
+    msg_log_assert(data != nullptr);
 
     std::string key_string;
     DBus::binary_to_hexstring(key_string,
@@ -224,7 +224,7 @@ gboolean dbusmethod_cache_get_scaled_image(tdbusArtCacheRead *object,
                                        format, obj))
     {
       case ArtCache::LookupResult::FOUND:
-        log_assert(obj != nullptr);
+        msg_log_assert(obj != nullptr);
         error_code = (obj->data().empty()
                       ? ArtCache::ReadError::Code::OK
                       : ArtCache::ReadError::Code::UNCACHED);
@@ -232,28 +232,28 @@ gboolean dbusmethod_cache_get_scaled_image(tdbusArtCacheRead *object,
         break;
 
       case ArtCache::LookupResult::KEY_UNKNOWN:
-        log_assert(obj == nullptr);
+        msg_log_assert(obj == nullptr);
         error_code = ArtCache::ReadError::Code::KEY_UNKNOWN;
         break;
 
       case ArtCache::LookupResult::PENDING:
-        log_assert(obj == nullptr);
+        msg_log_assert(obj == nullptr);
         error_code = ArtCache::ReadError::Code::BUSY;
         break;
 
       case ArtCache::LookupResult::FORMAT_NOT_SUPPORTED:
-        log_assert(obj == nullptr);
+        msg_log_assert(obj == nullptr);
         error_code = ArtCache::ReadError::Code::FORMAT_NOT_SUPPORTED;
         break;
 
       case ArtCache::LookupResult::ORPHANED:
-        log_assert(obj == nullptr);
+        msg_log_assert(obj == nullptr);
         msg_info("Orphaned key %s", key_string.c_str());
         error_code = ArtCache::ReadError::Code::KEY_UNKNOWN;
         break;
 
       case ArtCache::LookupResult::IO_ERROR:
-        log_assert(obj == nullptr);
+        msg_log_assert(obj == nullptr);
         error_code = ArtCache::ReadError::Code::IO_FAILURE;
         break;
     }
@@ -269,7 +269,7 @@ gboolean dbusmethod_cache_get_scaled_image(tdbusArtCacheRead *object,
     }
     else
     {
-        log_assert(!obj->hash_.empty());
+        msg_log_assert(!obj->hash_.empty());
 
         hash_variant = DBus::hexstring_to_variant(obj->hash_);
         data_variant = g_variant_new_fixed_array(G_VARIANT_TYPE_BYTE,
@@ -323,7 +323,7 @@ gboolean dbusmethod_cache_add_by_uri(tdbusArtCacheWrite *object,
     tdbus_art_cache_write_complete_add_image_by_uri(object, invocation);
 
     auto *data = static_cast<DBus::SignalData *>(user_data);
-    log_assert(data != nullptr);
+    msg_log_assert(data != nullptr);
 
     std::string key;
     DBus::binary_to_hexstring(key,
@@ -370,7 +370,7 @@ gboolean dbusmethod_cache_add_by_data(tdbusArtCacheWrite *object,
     tdbus_art_cache_write_complete_add_image_by_data(object, invocation);
 
     auto *data = static_cast<DBus::SignalData *>(user_data);
-    log_assert(data != nullptr);
+    msg_log_assert(data != nullptr);
 
     std::string key;
     DBus::binary_to_hexstring(key,

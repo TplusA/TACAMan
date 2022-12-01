@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017, 2020, 2021  T+A elektroakustik GmbH & Co. KG
+ * Copyright (C) 2017, 2020, 2021, 2022  T+A elektroakustik GmbH & Co. KG
  *
  * This file is part of TACAMan.
  *
@@ -194,7 +194,7 @@ class Statistics
 
     void sub_from_counter(size_t &counter, bool is_gc)
     {
-        log_assert(counter > 0);
+        msg_log_assert(counter > 0);
         --counter;
 
         if(!is_gc)
