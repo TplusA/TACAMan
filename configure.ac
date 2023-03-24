@@ -1,4 +1,5 @@
 dnl Copyright (C) 2017, 2018, 2020, 2022  T+A elektroakustik GmbH & Co. KG
+dnl Copyright (C) 2023  T+A elektroakustik GmbH & Co. KG
 dnl
 dnl This file is part of TACAMan.
 dnl
@@ -18,7 +19,7 @@ dnl Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 dnl MA  02110-1301, USA.
 
 AC_PREREQ([2.69])
-AC_INIT([TACAMan], [1.5], [r.tiemann@ta-hifi.com])
+AC_INIT([TACAMan], [1.6], [r.tiemann@ta-hifi.com])
 AC_CONFIG_AUX_DIR([config])
 AM_INIT_AUTOMAKE([1.11 -Wall -Werror foreign])
 AM_SILENT_RULES([yes])
