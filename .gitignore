@@ -7,4 +7,5 @@
 /cscope.out
 /tags
 /*.taghl
+/.gitreview
 Makefile.in
